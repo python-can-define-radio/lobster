@@ -1,12 +1,5 @@
 Next steps (overview) -- details for each below
 
-Today:
-- commit (obv)
-- 
-
-Next session:
-- Move repo, add mit license, link to it from index.html link
-
 1 week:
 - Mission instructions
 - Selected lob
