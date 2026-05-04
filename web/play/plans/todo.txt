@@ -2,6 +2,9 @@
 Next steps (overview) -- details for each below
 
 1 week:
+- Finish reworking Avatar class
+- Rework CanvM to have very few instance attributes and no late ones
+- Check all other classes for "late" variables
 - Mission instructions
 - Selected lob
 - Compass

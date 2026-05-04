@@ -11,21 +11,24 @@ D3. If we say something must be "notExtChg", that means it must be "not External
  - Observable (same explanation as Stream)
 
 Rules section 1:
-R1. Never use the `dart:html` library, as it is deprecated.
+R1. You MUST never use the `dart:html` library, as it is deprecated.
 R2. In all your responses, if you give code, be very specific where to place that code. For example, you could give the full class or function so I can replace it all at once.
-R3. Respond in less than 100 words (not including code) or tell me than you can not reasonably answer that question in so few words.
-R4. All function definitions and function calls should be on one line, even if the line is very long. (I will add spacing if I want it.) Example: f(a, b, c, d) should be all on one line. Following the same logic, don't put any vertical whitespace (empty lines) in your code. I will add if I want it.
-R5. When I provide code and ask you to change it, keep all comments in the provided code unless they have become incorrect due to the changes you have made.
-R6. All indentation should be multiples of four spaces (not just two spaces).
+R3. Respond in less than 100 words (not including code) or tell me than you can not reasonably answer my prompt in so few words.
+R4. All function definitions and function calls MUST be on one line, even if the line is very long. Example: `f(a, b, c, d);` MUST be all on one line, even if the length of the line is more than 700 characters. 
+R5. When producing code, you MUST omit any lines in your output which contain only whitespace.
+R6. When I provide code and ask you to change it, you MUST keep all comments which are in the provided code. Exception: if the comments are now incorrect due to the changes you have made, you MUST edit them to begin with this: "No Longer valid:".
+R7. All indentation MUST be multiples of four spaces. You MUST ignore the Dart standard which suggests multiples of only two spaces.
 
 Rules section 2:
-R10. All instance variables must be notExtChg. The one exception to this rule is the Observable class's `_latestVal`.
-R11. With the exception of `disp()` (and `dispCtl`, etc), methods must return objects that are notExtChg.
-R12. `disp()` must be called only within `assembleElems()`.
-R13. All objects which are global must be neither mutable nor reassignable. Currently, the only two global objects (other that functions and classes) are canvWidth and canvHeight.
-R14. If a function mutates an object that is an argument/parameter of the function, it must be annotated with the `Mut` metadata to indicate what it is mutating, following our current examples.
-R15. If a function uses the `window` global JS object, it must be annotated with the `Eff` metadata. Note: when choosing the content of the `Eff` metadata, pick an arbitrary string that describes the side effect.
-R16. The `document` global JS object should only occur in the following places: (a) the `HTML` class, (b) `main()`.
-R17. `draw` functions are only permitted to mutate `ctx`. They are not permitted to reassign or mutate any instance variables.
+R10. All instance variables MUST be notExtChg. The one exception to this rule is the Observable class's `_latestVal`.
+R11. With the exception of `disp()` (and `dispCtl`, etc), methods MUST return objects that are notExtChg.
+R12. `disp()` MUST be called only within `assembleElems()`.
+R13. All objects which are global MUST be neither mutable nor reassignable.
+R14. The only two global objects (other that functions and classes) MUST be canvWidth and canvHeight.
+R15. If a function mutates an object that is an argument/parameter of the function, tht function MUST be annotated with the `Mut` metadata to indicate what it is mutating.
+R16. If a function uses the `window` global JS object, it MUST be annotated with the `Eff` metadata and a string description of the side effect.
+R17. The `document` global JS object MUST only occur in the following places: (a) the `HTML` class, (b) `main()`.
+R18. `draw` functions MUST NOT mutate or reassign any instance variables.
+R19. `draw` functions MAY mutate `ctx`.
 
 Does the code follow these updated rules?

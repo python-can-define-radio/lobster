@@ -226,23 +226,28 @@ abstract class Drawable {
 }
 
 
+enum Dctn { up, down, left, right }
+typedef PD = ({Pos pos, Dctn dctn});
+
+
 class PlayerPos {
     final Observable<Pos> posObs;
     final Stream<Pos> posStm;
+    final Observable<Dctn> dctnObs;
 
-    PlayerPos(this.posObs, this.posStm);
+    PlayerPos(this.posObs, this.posStm, this.dctnObs);
     
     @factory
     static PlayerPos create(Pos initPos, KbStm keydown, KbStm keyup, DuStm tdelta) {
-        final posStm = _makePosStm(initPos, keydown, keyup, tdelta);
+        final posDirStm = _makePosStm(initPos, keydown, keyup, tdelta);
+        final posStm = posDirStm.map((x) => x.pos);
+        final dctnObs = Observable(Dctn.down, posDirStm.map((x) => x.dctn));
         final posObs = Observable(initPos, posStm);
-        return PlayerPos(posObs, posStm);
+        return PlayerPos(posObs, posStm, dctnObs);
     }
 
-    static Stream<Pos> _makePosStm(Pos initPos, KbStm keydown, KbStm keyup, DuStm tdelta) {
-        const baseSpeed = 2.0 * 0.001;
+    static Stream<PD> _makePosStm(Pos initPos, KbStm keydown, KbStm keyup, DuStm tdelta) {
         final pressed = <String>{};
-        final sc = StreamController<Pos>();
         keydown.listen((e) {
             if (!e.repeat) {
                 pressed.add(e.code);
@@ -251,32 +256,51 @@ class PlayerPos {
         keyup.listen((e) {
             pressed.remove(e.code);
         });
-        var cur = initPos;
-        tdelta.listen((dt) {
-            var dx = 0.0;
-            var dy = 0.0;
-            if (pressed.contains("KeyA")) dx -= 1;
-            if (pressed.contains("KeyD")) dx += 1;
-            if (pressed.contains("KeyW")) dy += 1;
-            if (pressed.contains("KeyS")) dy -= 1;
-            /// Normalize diagonal movement so that movement speed is always 1.
-            /// Without this, diagonal would be faster
-            final mag = sqrt(dx * dx + dy * dy);
-            if (mag > 0) {
-                dx /= mag;
-                dy /= mag;
-            }
-            final running = pressed.contains("ShiftLeft") ||
-                            pressed.contains("ShiftRight");
-            final speed = running ? baseSpeed * 2 : baseSpeed;
-            final dist = speed * dt.inMilliseconds;
-            cur = Pos(
-                GC(cur.x.val + dx * dist),
-                GC(cur.y.val + dy * dist),
+        PD cnpd(PD prev, Duration dt) => computeNewPosDctn(prev, dt, pressed);
+        return tdelta.scan(
+            (pos: initPos, dctn: Dctn.down), cnpd
+        ).asBroadcastStream();
+    }
+
+    static Dctn fromHV(int horizraw, int vertraw) =>
+        switch((horizraw, vertraw)) {
+            (1, 0) => Dctn.up,
+            _ => Dctn.down,
+        };
+    
+    static PD computeNewPosDctn(PD prev, Duration dt, Set<String> pressed) {
+        /// subtract bool
+        int sb(bool a, bool b) => switch((a, b)) {
+            (true, true) => 0,
+            (true, false) => 1,
+            (false, true) => -1,
+            (false, false) => 0
+        };
+        /// 1: moving right; -1: moving left; 0: no horizontal movement
+        final horizraw = sb(pressed.contains("KeyD"), pressed.contains("KeyA"));
+        /// 1: moving up; -1: moving down; 0: no vertical movement
+        final vertraw = sb(pressed.contains("KeyW"), pressed.contains("KeyS"));
+        final norm = sqrt(sq(horizraw) + sq(vertraw));
+        /// Using the type system to ensure I don't divide by zero later
+        final nullyNorm = norm == 0 ? null : norm;
+        const baseSpeed = 2.0 * 0.001;
+        final running = pressed.contains("ShiftLeft") || pressed.contains("ShiftRight");
+        final speed = running ? baseSpeed * 2 : baseSpeed;
+        final dist = speed * dt.inMilliseconds;
+        if (nullyNorm == null) {
+            /// no movement happened
+            return prev;  
+        } else {
+            assert (nullyNorm != 0);
+            // avoid faster diagonal speed
+            final distNorm = dist / nullyNorm;
+            final xdiff = horizraw * distNorm;
+            final ydiff = vertraw * distNorm;
+            return (
+              pos: prev.pos + Pos(GC(xdiff), GC(ydiff)),
+              dctn: fromHV(horizraw, vertraw),
             );
-            sc.add(cur);
-        });
-        return sc.stream.asBroadcastStream();
+        }
     }
 }
 
@@ -295,80 +319,120 @@ class PlayerHUD {
     }
 }
 
+/*  
+Given:
+  image _avatarSheet
+  _horizFrames = 4
+  _vertFrames = 4
+  
+
+Want:
+  - Avatar faces the correct direction:
+    - If the movement is to the right, it should face right,
+    - same for the other three directions
+  - Avatar animates using sprite sheet
+  - Avatar does not animate when not moving
+
+Defining movement:
+  PlayerPos class has dx and dy.
+  dx and dy are positive, negative, or zero:
+    example: dx > 0, dy == 0  would be moving in positive x direction.
+
+    
+  
+  
+
+Not sure about this yet:
+  Observable<({num dx, num dy})> movement;
+
+  
+  
+
+
+(backup options):
+  - Listen to the player's position stream and do subtraction
+  - Listen to keypresses
+
+*/
+
 class Avatar implements Drawable {
     final HTMLImageElement _avatarSheet;
+    final Observable<Dctn> _p1dctn;
     final int _horizFrames = 4;
     final int _vertFrames = 4;
-    final Observable<int> _curFrame;
-    final Observable<int> _dirRowStm;
 
-    Avatar(this._avatarSheet, this._curFrame, this._dirRowStm);
+    // final Observable<int> _curFrame;
+    // final Observable<int> _dirRowStm;
+    Avatar(this._avatarSheet, this._p1dctn);
+    // Avatar(this._avatarSheet, this._curFrame, this._dirRowStm);
 
     @Eff("http-req")
     @factory
-    static Future<Avatar> create(Stream<Pos> p1pos) async {
+    static Future<Avatar> create(Observable<Dctn> p1dctn) async {
         final img = await imageload("../assets/avatar_sheet2.png");
-        const horizFrames = 4;
 
-        final stm = Stream.periodic(
-            Duration(milliseconds: 200),
-            (i) => i % horizFrames, // 🔥 FIX: keep frames in range
-        );
+    //     final frameStream = Stream<int>.periodic(
+    //         const Duration(milliseconds: 200),
+    //         (x) => x % 4,
+    //     );
 
-        final obs = Observable(0, stm);
-        final dirRowObs = makeDirRowObs(p1pos);
+    //     final frameObs = Observable(0, frameStream);
+    //     final dirRowObs = _makeDirRowObs(p1pos);
 
-        return Avatar(img, obs, dirRowObs);
+        return Avatar(img, p1dctn);
     }
 
-    @Mut(["ctx"])
-    void _drawSlice(Cctx ctx, int xidx, int yidx, num xpos, num ypos, num size) {
-        final fw = _avatarSheet.width / _horizFrames;
-        final fh = _avatarSheet.height / _vertFrames;
-        ctx.drawImage(
-            _avatarSheet,
-            xidx * fw,
-            yidx * fh,
-            fw,
-            fh,
-            xpos,
-            ypos,
-            size,
-            size,
-        );
-    }
+    // @Mut(["ctx"])
+    // void _drawSlice(Cctx ctx, int xidx, int yidx, num xpos, num ypos, num size) {
+    //     final fw = _avatarSheet.width / _horizFrames;
+    //     final fh = _avatarSheet.height / _vertFrames;
+    //     ctx.drawImage(_avatarSheet, xidx * fw, yidx * fh, fw, fh, xpos, ypos, size, size);
+    // }
 
-    static Observable<int> makeDirRowObs(Stream<Pos> p1pos) {
-        final sc = StreamController<int>();
-        Pos? prev;
-        p1pos.listen((cur) {
-          int row = 0;
-          if (prev != null) {
-            final dx = cur.x.val - prev!.x.val;
-            final dy = cur.y.val - prev!.y.val;
-            if (dx != 0 || dy != 0) {
-              if (dx.abs() > dy.abs()) {
-                row = dx > 0 ? 3 : 2;
-              } else {
-                row = dy > 0 ? 1 : 0;
-              }
-            }
-          }
-          prev = cur;
-          sc.add(row);
-        });
-        return Observable(0, sc.stream.asBroadcastStream());
-    }
+    // static Observable<int> _makeDirRowObs(Stream<Pos> p1pos) {
+    //     final sc = StreamController<int>.broadcast();
+
+    //     Pos? prev;
+    //     int lastRow = 0;
+
+    //     p1pos.listen((cur) {
+    //         if (prev == null) {
+    //             prev = cur;
+    //             sc.add(lastRow);
+    //             return;
+    //         }
+
+    //         final dx = cur.x.val - prev!.x.val;
+    //         final dy = cur.y.val - prev!.y.val;
+
+    //         final moving = dx.abs() > 0.0001 || dy.abs() > 0.0001;
+
+    //         if (moving) {
+    //             if (dx.abs() > dy.abs()) {
+    //                 lastRow = dx > 0 ? 3 : 2;
+    //             } else {
+    //                 lastRow = dy > 0 ? 1 : 0;
+    //             }
+    //         }
+
+    //         prev = cur;
+    //         sc.add(lastRow);
+    //     });
+
+    //     return Observable(0, sc.stream);
+    // }
 
     @override
     @Mut(["ctx"])
     void draw(Cctx ctx, GridCC gridcc) {
-        const cenx = canvWidth / 2;
-        const ceny = canvHeight / 2;
-        const avsize = 50;
-        final frame = _curFrame.latestVal;
-        final row = _dirRowStm.latestVal;
-        _drawSlice(ctx, frame, row, cenx - avsize / 2, ceny - avsize / 2, avsize);
+        const size = 50;
+        final x = canvWidth / 2 - size / 2;
+        final y = canvHeight / 2 - size / 2;
+        ctx.fillText(_p1dctn.latestVal.name, x, y);
+    //     final frame = _curFrame.latestVal;
+    //     final row = _dirRowStm.latestVal;
+
+        // _drawSlice(ctx, frame, row, x, y, size);
     }
 }
 
@@ -1109,7 +1173,7 @@ void main() async {
     final t1 = await TxRadio.create();
     final sim = Sim(p1.posObs, t1.pos, t1.txpower);
     final bushes = await Objs.create();
-    final avatarlife = await Avatar.create(p1.posStm);
+    final avatarlife = await Avatar.create(p1.dctnObs);
     final reticle = Reticle(p1.posObs);
     final zoom = Zoom();
     final grid = Grid(zoom.scale);
