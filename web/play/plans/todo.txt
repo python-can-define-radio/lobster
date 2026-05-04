@@ -1,4 +1,9 @@
+
 Next steps (overview) -- details for each below
+
+today:
+- currently the camera is not following the player at all times except when panning
+- If it's ok, let's ask AI whether the code currently follows the rules
 
 1 week:
 - Mission instructions
@@ -38,7 +43,6 @@ Compass:
     - We need to discuss different execution possibilities.
     - G N with a vertical line?
     - magnetic north too? 
-
 
 #############################################################################
 Grid lines modification:

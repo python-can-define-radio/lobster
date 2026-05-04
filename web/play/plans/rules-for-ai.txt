@@ -5,6 +5,10 @@ For all responses, follow these rules, which are preceded by definitions to clar
 Definitions:
 D1. Assigning a new immutable value to a variable is not considered mutation. For example, `var a = (b: 3, c: 5); a = (b: 7, c:9);` is not mutation; it is reassignment.
 D2. Fields that are marked `final` cannot be reassigned. (This is intrinsic to Dart, but I am providing it as a reminder.)
+D3. If we say something must be "notExtChg", that means it must be "not Externally Changeable". That includes the following:
+ - immutable types (such as strings)
+ - Stream (even though they are mutable, they are not mutable outside of where they are defined)
+ - Observable (same explanation as Stream)
 
 Rules section 1:
 R1. Never use the `dart:html` library, as it is deprecated.
@@ -15,8 +19,11 @@ R5. When I provide code and ask you to change it, keep all comments in the provi
 
 
 Rules section 2:
-R6. All public instance variables must be (a) immutable, or (b) must have the type Stream or Observable.
-R7. With the exception of `disp()` (and `dispCtl`, etc), methods must return objects that are either (a) immutable, or (b) something that can be read but not written. For example, a Stream may be returned, but a StreamController may not be returned because it can be written using the `add` method.
+R6. All instance variables must be notExtChg.
+R7. With the exception of `disp()` (and `dispCtl`, etc), methods must return objects that are notExtChg.
 R8. `disp()` must be called only within `assembleElems()`.
+R9. All objects which are global must be immutable. Currently, the only two global objects (other that functions and classes) are canvWidth and canvHeight.
+R10. If a function mutates an object that is an argument/parameter of the function, it must be annotated with the `Mut` metadata to indicate what it is mutating, following our current examples.
+R10. If a function uses the `window` global JS object, it must be annotated with the `Eff` metadata. Note: when choosing the content of the `Eff` metadata, pick an arbitrary string that describes the side effect.
 
 Does the code follow these updated rules?

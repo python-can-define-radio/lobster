@@ -5,7 +5,7 @@ import 'custom.dart' show Mut;
 
 
 extension Flickerable on HTMLElement {
-    /// Adds "button-active" to the classList, and then removes it 100 ms later.
+    /// Adds "button-active" to the classList, and then removes it `milliseconds` ms later.
     /// Debugging note: this assumes that...
     /// - the element still exists after `milliseconds`
     /// - nothing else is adding/removing the "button-active" class

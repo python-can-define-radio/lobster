@@ -98,6 +98,12 @@ h2 {
     left: 230px;
 }
 
+#recenter-btn {
+    position: absolute;
+    top: 50px;
+    left: 280px;
+}
+
 .game-btn {
     border: 2px solid rgba(255, 255, 255, 0.25);
     background-color: #0a0f1488; 

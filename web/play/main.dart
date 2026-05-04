@@ -844,7 +844,7 @@ class MissionUI {
 }
 
 /// Previous name: attachElems()
-HTMLElement assembleElems(CanvM cmLife, CanvM cmLob, PlayerHUD phud, LOBCol lobc, MissionUI mui, Zoom zoom, Messages msgs) {
+HTMLElement assembleElems(CanvM cmLife, CanvM cmLob, PlayerHUD phud, LOBCol lobc, MissionUI mui, Zoom zoom, Messages msgs, Pan pan) {
     final cmLobHudWrapped = HTML.div(id: "hudwrap", children: [cmLob.disp()]);
     final cmLobAndAssociated = HTML.div(id: "cmlobparent", children: [
         cmLobHudWrapped,
@@ -856,11 +856,15 @@ HTMLElement assembleElems(CanvM cmLife, CanvM cmLob, PlayerHUD phud, LOBCol lobc
         zoom.disp(),
         msgs.dispenv(),
         msgs.dispoverlay(),
+        pan.disp()
     ]);
     
     return HTML.div(children: [
-        HTML.div(id: "two-canvasses", children: [cmLife.disp(), cmLobAndAssociated])
-    ]);
+    HTML.div(
+        id: "two-canvasses",
+        children: [cmLife.disp(), cmLobAndAssociated]
+    )
+]);
 }
 
 
@@ -965,25 +969,41 @@ Stream<MEv> makeMouseMoveStm(Stream<MouseEvent> mouseDown, Stream<MouseEvent> mo
 
 class Pan {
     late final Observable<Pos> center;
-    final resetBtn = HTML.button()..innerText = "ZR";
+    final HTMLButtonElement _resetBtn = HTML.button()..innerText = "Re-center"..id = "recenter-btn"..className = "game-btn";
+    final StreamController<bool> _showReset = StreamController<bool>.broadcast();
 
     Pan(Stream<MEv> mevStm, Observable<Pos> p1pob, Observable<double> scale) {
         final sc = StreamController<Pos>();
         final initCenter = p1pob.latestVal;
         var current = initCenter;
+        var hasPanned = false;
+
         mevStm.where((mev) => mev.isDown).listen((mev) {
             current += GridCC(scale.latestVal, current).gc(-mev.dx, mev.dy);
             sc.add(current);
+            if (!hasPanned) {
+                hasPanned = true;
+                _showReset.add(true);
+            }
+        });
+
+        _resetBtn.onClick.listen((_) {
+            current = p1pob.latestVal;
+            sc.add(current);
+            hasPanned = false;
+            _showReset.add(false);
         });
 
         center = Observable(initCenter, sc.stream);
     }
 
-    // /// Recenter camera back to origin (player center handled by CanvM)
-    // void recenter() {
-    //     final zero = Pos(GC(0), GC(0));
-    //     _offsetController.add(zero);
-    // }
+    HTMLElement disp() {
+        final wrap = HTML.div();
+        _showReset.stream.listen((show) {
+            wrap.replaceChildren(show ? _resetBtn : HTML.div());
+        });
+        return wrap;
+    }
 }
 
 class Messages {
@@ -1104,6 +1124,6 @@ void main() async {
     cmLife.config(p1.posStm, [avatarlife, bushes, t1]);
     cmLob.config(p1.posStm, [lobc, grid, reticle], pan.center);
     document.getElementById("gameroot")!.replaceChildren(
-        assembleElems(cmLife, cmLob, ph, lobc, mui, zoom, msg)
+        assembleElems(cmLife, cmLob, ph, lobc, mui, zoom, msg, pan)
     ); 
 }
