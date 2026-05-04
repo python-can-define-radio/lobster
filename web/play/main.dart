@@ -419,17 +419,17 @@ class CanvM {
             ..height = h
             ..id = cssid;
         _ctx = _canv.getContext('2d') as Cctx;
-        /// as per AI recommendation, the mouseUp should be from the document in case the cursor leaves the canvas
+        /// as per AI recommendation, the mouseUp should be from the doc in case the cursor leaves the canvas
         mevStm = makeMouseMoveStm(_canv.onMouseDown, _canv.onMouseMove, docMouseUp);
     }
     
     /// Basically 'constructor part two'. Had to separate to avoid
     /// a circular dependency.
     void config(Stream<Pos> posStm, List<Drawable> drawItems, [Observable<Pos>? panCenter]) {
-        _drawItems = ImmuList(drawItems);
-        _panCenter = panCenter;
-        posStm.listen(_frameUpdate);
-    }
+      _drawItems = ImmuList(drawItems);
+      _panCenter = panCenter;
+      posStm.listen(_frameUpdate);
+  }
     
     HTMLCanvasElement disp() => _canv;
 
@@ -972,36 +972,32 @@ class Pan {
     final HTMLButtonElement _resetBtn = HTML.button()..innerText = "Re-center"..id = "recenter-btn"..className = "game-btn";
     final StreamController<bool> _showReset = StreamController<bool>.broadcast();
 
-    Pan(Stream<MEv> mevStm, Observable<Pos> p1pob, Observable<double> scale) {
+    Pan(Stream<MEv> mevStm, Observable<Pos> p1pob, Stream<Pos> p1stm, Observable<double> scale) {
         final sc = StreamController<Pos>();
-        final initCenter = p1pob.latestVal;
-        var current = initCenter;
+        var current = p1pob.latestVal;
         var hasPanned = false;
+
+        p1stm.listen((p) { if (!hasPanned) { current = p; sc.add(current); } });
 
         mevStm.where((mev) => mev.isDown).listen((mev) {
             current += GridCC(scale.latestVal, current).gc(-mev.dx, mev.dy);
             sc.add(current);
-            if (!hasPanned) {
-                hasPanned = true;
-                _showReset.add(true);
-            }
+            if (!hasPanned) { hasPanned = true; _showReset.add(true); }
         });
 
         _resetBtn.onClick.listen((_) {
+            hasPanned = false;
             current = p1pob.latestVal;
             sc.add(current);
-            hasPanned = false;
             _showReset.add(false);
         });
 
-        center = Observable(initCenter, sc.stream);
+        center = Observable(current, sc.stream);
     }
 
     HTMLElement disp() {
         final wrap = HTML.div();
-        _showReset.stream.listen((show) {
-            wrap.replaceChildren(show ? _resetBtn : HTML.div());
-        });
+        _showReset.stream.listen((show) { wrap.replaceChildren(show ? _resetBtn : HTML.div()); });
         return wrap;
     }
 }
@@ -1102,6 +1098,7 @@ class Objs implements Drawable {
 }
 
 
+@Eff("*")
 void main() async {
     final keydown = document.body!.onKeyDown;
     final keyup = document.body!.onKeyUp;
@@ -1120,7 +1117,7 @@ void main() async {
     final lobc = LOBCol(keydown, sim.univLobs, cmLob.click, p1.posObs, zoom.scale);
     final mui = MissionUI(window.location.href, t1.pos);
     final msg = Messages();
-    final pan = Pan(cmLob.mevStm, p1.posObs, zoom.scale);
+    final pan = Pan(cmLob.mevStm, p1.posObs, p1.posStm, zoom.scale);
     cmLife.config(p1.posStm, [avatarlife, bushes, t1]);
     cmLob.config(p1.posStm, [lobc, grid, reticle], pan.center);
     document.getElementById("gameroot")!.replaceChildren(

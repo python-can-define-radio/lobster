@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:js_interop';
 import 'package:web/web.dart';
-import 'custom.dart' show Mut;
+import 'custom.dart' show Mut, Eff;
 
 
 extension Flickerable on HTMLElement {
@@ -19,6 +19,7 @@ extension Flickerable on HTMLElement {
 }
 
 /// Repeatedly call requestAnimationFrame; pass the time delta as an argument to `frameUpdate`
+@Eff("window.requestAnimationFrame")
 void runEachFrame(void Function(Duration) frameUpdate) {
     void dartRAF(void Function(double) callback) {
         window.requestAnimationFrame(callback.toJS);
@@ -35,7 +36,8 @@ void runEachFrame(void Function(Duration) frameUpdate) {
     dartRAF(animate);
 }
 
-
+/// Run requestAnimationFrame repeatedly. Return a stream of time differences between frames. 
+@Eff("window.requestAnimationFrame")
 Stream<Duration> makeFrameStm() {
     final timeDiffSC = StreamController<Duration>();
     runEachFrame((Duration tdelta) => timeDiffSC.add(tdelta));

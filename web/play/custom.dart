@@ -55,6 +55,7 @@ Result<T, U> flatten<T, U>(Result<Result<T, U>, U> r) =>
 /// Metadata to mark something as doing some side effect.
 /// Unlike Haskell, we're not actively tracking these; it's just
 /// a reminder.
+/// Use "*" to indicate "all effects allowed". This should probably only be done on main().
 class Eff {
     final String desc;
     const Eff(this.desc);
@@ -85,6 +86,7 @@ extension Scanner<T> on Stream<T> {
 class Observable<T> {
     T _latestVal;
     T get latestVal => _latestVal;
+    @Mut(["this._latestVal"])
     Observable(this._latestVal, Stream<T> stream) {
         stream.listen((val) => _latestVal = val);
     }

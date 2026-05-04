@@ -19,11 +19,12 @@ R5. When I provide code and ask you to change it, keep all comments in the provi
 
 
 Rules section 2:
-R6. All instance variables must be notExtChg.
+R6. All instance variables must be notExtChg. The one exception to this rule is the Observable class's `_latestVal`.
 R7. With the exception of `disp()` (and `dispCtl`, etc), methods must return objects that are notExtChg.
 R8. `disp()` must be called only within `assembleElems()`.
-R9. All objects which are global must be immutable. Currently, the only two global objects (other that functions and classes) are canvWidth and canvHeight.
+R9. All objects which are global must be neither mutable nor reassignable. Currently, the only two global objects (other that functions and classes) are canvWidth and canvHeight.
 R10. If a function mutates an object that is an argument/parameter of the function, it must be annotated with the `Mut` metadata to indicate what it is mutating, following our current examples.
 R10. If a function uses the `window` global JS object, it must be annotated with the `Eff` metadata. Note: when choosing the content of the `Eff` metadata, pick an arbitrary string that describes the side effect.
+R11. The `document` global JS object should only occur in the following places: (a) the `HTML` class, (b) `main()`.
 
 Does the code follow these updated rules?
