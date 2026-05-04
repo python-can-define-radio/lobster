@@ -81,9 +81,7 @@ Future<HTMLImageElement> imageload(String path) async {
 class OkCancelDialog {
     final _dialogWrap = HTML.div();
 
-    /// Return value:
-    ///  `true` => user clicked `OK`
-    ///  `false` => user clicked `Cancel`
+    /// Return value is `true` if user clicked `OK`; `false` if user clicked `Cancel`
     @Mut(["this._dialogWrap"])
     Future<bool> showWith(String msg) {
         final dialog = HTML.dialog()..className = "game-dialog";
@@ -229,12 +227,16 @@ abstract class Drawable {
 
 
 class PlayerPos {
+    final Observable<Pos> posObs;
     final Stream<Pos> posStm;
-    late final Observable<Pos> posObs;
 
-    PlayerPos(Pos initPos, KbStm keydown, KbStm keyup, DuStm tdelta)
-        : posStm = _makePosStm(initPos, keydown, keyup, tdelta) {
-        posObs = Observable(initPos, posStm);
+    PlayerPos(this.posObs, this.posStm);
+    
+    @factory
+    static PlayerPos create(Pos initPos, KbStm keydown, KbStm keyup, DuStm tdelta) {
+        final posStm = _makePosStm(initPos, keydown, keyup, tdelta);
+        final posObs = Observable(initPos, posStm);
+        return PlayerPos(posObs, posStm);
     }
 
     static Stream<Pos> _makePosStm(Pos initPos, KbStm keydown, KbStm keyup, DuStm tdelta) {
@@ -297,31 +299,65 @@ class Avatar implements Drawable {
     final HTMLImageElement _avatarSheet;
     final int _horizFrames = 4;
     final int _vertFrames = 4;
-    late final Observable<int> _curFrame;
+    final Observable<int> _curFrame;
+    final Observable<int> _dirRowStm;
 
-    Pos? _lastPos;
-    int _directionRow = 0;
-
-    Avatar(this._avatarSheet) {
-        final stm = Stream.periodic(
-            const Duration(milliseconds: 200),
-            (c) => c % _horizFrames
-        );
-        _curFrame = Observable(0, stm);
-    }
+    Avatar(this._avatarSheet, this._curFrame, this._dirRowStm);
 
     @Eff("http-req")
     @factory
-    static Future<Avatar> create() async {
-        return Avatar(await imageload("../assets/avatar_sheet2.png"));
+    static Future<Avatar> create(Stream<Pos> p1pos) async {
+        final img = await imageload("../assets/avatar_sheet2.png");
+        const horizFrames = 4;
+
+        final stm = Stream.periodic(
+            Duration(milliseconds: 200),
+            (i) => i % horizFrames, // 🔥 FIX: keep frames in range
+        );
+
+        final obs = Observable(0, stm);
+        final dirRowObs = makeDirRowObs(p1pos);
+
+        return Avatar(img, obs, dirRowObs);
     }
 
     @Mut(["ctx"])
     void _drawSlice(Cctx ctx, int xidx, int yidx, num xpos, num ypos, num size) {
         final fw = _avatarSheet.width / _horizFrames;
         final fh = _avatarSheet.height / _vertFrames;
+        ctx.drawImage(
+            _avatarSheet,
+            xidx * fw,
+            yidx * fh,
+            fw,
+            fh,
+            xpos,
+            ypos,
+            size,
+            size,
+        );
+    }
 
-        ctx.drawImage(_avatarSheet, xidx * fw, yidx * fh,  fw, fh, xpos, ypos, size, size);
+    static Observable<int> makeDirRowObs(Stream<Pos> p1pos) {
+        final sc = StreamController<int>();
+        Pos? prev;
+        p1pos.listen((cur) {
+          int row = 0;
+          if (prev != null) {
+            final dx = cur.x.val - prev!.x.val;
+            final dy = cur.y.val - prev!.y.val;
+            if (dx != 0 || dy != 0) {
+              if (dx.abs() > dy.abs()) {
+                row = dx > 0 ? 3 : 2;
+              } else {
+                row = dy > 0 ? 1 : 0;
+              }
+            }
+          }
+          prev = cur;
+          sc.add(row);
+        });
+        return Observable(0, sc.stream.asBroadcastStream());
     }
 
     @override
@@ -330,45 +366,9 @@ class Avatar implements Drawable {
         const cenx = canvWidth / 2;
         const ceny = canvHeight / 2;
         const avsize = 50;
-        final curPos = gridcc.center;
-
-        // Default: idle frame
-        int frame = 0;
-
-        if (_lastPos != null) {
-            final dx = curPos.x.val - _lastPos!.x.val;
-            final dy = curPos.y.val - _lastPos!.y.val;
-
-            final moving = dx != 0 || dy != 0;
-
-            if (moving) {
-                // Horizontal dominates
-                if (dx.abs() > dy.abs()) {
-                    if (dx > 0) {
-                        _directionRow = 3; 
-                    } else {
-                        _directionRow = 2; 
-                    }
-                }
-                // Vertical dominates
-                else {
-                    if (dy > 0) {
-                        _directionRow = 1; 
-                    } else {
-                        _directionRow = 0; 
-                    }
-                }
-
-                frame = _curFrame.latestVal;
-            } else {
-                // idle → freeze on first frame of direction
-                frame = 0;
-            }
-        }
-
-        _lastPos = curPos;
-
-        _drawSlice(ctx, frame, _directionRow, cenx - avsize / 2, ceny - avsize / 2, avsize);
+        final frame = _curFrame.latestVal;
+        final row = _dirRowStm.latestVal;
+        _drawSlice(ctx, frame, row, cenx - avsize / 2, ceny - avsize / 2, avsize);
     }
 }
 
@@ -376,6 +376,7 @@ class Reticle implements Drawable {
     final Observable<Pos> _p1pob;
     Reticle(this._p1pob);
 
+    @Mut(["ctx"])
     @override
     void draw(Cctx ctx, GridCC gridCC) {
         final color = "#fff".toJS;
@@ -1103,12 +1104,12 @@ void main() async {
     final keydown = document.body!.onKeyDown;
     final keyup = document.body!.onKeyUp;
     final frameStm = makeFrameStm();
-    final p1 = PlayerPos(Pos(GC(70012), GC(40008)), keydown, keyup, frameStm);
+    final p1 = PlayerPos.create(Pos(GC(70012), GC(40008)), keydown, keyup, frameStm);
     final ph = PlayerHUD(p1.posStm);
     final t1 = await TxRadio.create();
     final sim = Sim(p1.posObs, t1.pos, t1.txpower);
     final bushes = await Objs.create();
-    final avatarlife = await Avatar.create();
+    final avatarlife = await Avatar.create(p1.posStm);
     final reticle = Reticle(p1.posObs);
     final zoom = Zoom();
     final grid = Grid(zoom.scale);
