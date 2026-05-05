@@ -5,7 +5,6 @@ Next steps (overview) -- details for each below
 - Finish reworking Avatar class
 - Rework CanvM to have very few instance attributes and no late ones
 - Check all other classes for "late" variables
-- Mission instructions
 - Selected lob
 - Compass
 
@@ -13,19 +12,21 @@ Next steps (overview) -- details for each below
 - Tutorial 
 - Grid lines modification
 - Ground colors
+- Mission instructions
+
 
 3 months:
+- Transmitter
+- Credits
 - EM Physics
 - Art
 
 #################################################################################
 Mission instructions:
+    - possibly add a sound for incoming messages
+    - when you submit your grid coordinates it adds a sent message on this page
+    - make mission instructions look like an email interface? 
     - Once we add the mission code, the mission stuff will be hidden in 'Explore' mode.
-    - Mission 1:
-        In game, commander says something like this:
-        "The adversary's scouts are watching in force.
-        To avoid capture, stay behind the FLOT -- don't go any further North than grid 40100 northing.
-        Once you have determined the transmitter's grid location to within 3 meters, send it to me using your tablet's grid coordinate submission form."
     - Check for success when grid coordinates are entered.
     - Right canvas would have the dotted line for the FLOT, Discuss
     - Left canvas would have stick figures or whatever troops and equipment maybe
@@ -59,6 +60,14 @@ Tutorial:
 Ground colors:
     - Consider procedurally generated ground colors discuss whether on both or just left canvas
 
+#############################################################################
+Transmitter:
+    - Possibly add a transmitter animation that shows waves or no waves based on whether we are transmitting or not. (possible next stage for missions)
+
+#############################################################################
+Credits:
+    - Make credits page scroll and repeat like tv credits.
+    
 #############################################################################
 Art:
     - Source: One of...

@@ -228,3 +228,9 @@ h2 {
     color: lightgreen;
     font-size: 1.3em;
 }
+
+#m1-message {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: medium;
+    margin-left: 20px;
+}

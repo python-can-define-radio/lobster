@@ -223,56 +223,23 @@ abstract class Drawable {
 }
 
 
-enum Dctn { up, down, left, right }
-typedef PD = ({Pos pos, int dctn});
+@immutable
+class DirXY {
+    /// 1: moving right; -1: moving left; 0: no horizontal movement
+    final int horiz;
+    /// 1: moving up; -1: moving down; 0: no vertical movement
+    final int vert;
 
+    bool get isZero => horiz == 0 && vert == 0;
 
-class PlayerPos {
-    final Observable<Pos> posObs;
-    final Stream<Pos> posStm;
-    final Observable<int> dctnObs;
+    DirXY(this.horiz, this.vert) {
+        assert ([1, 0, -1].contains(horiz));
+        assert ([1, 0, -1].contains(vert));
+    }
 
-    PlayerPos(this.posObs, this.posStm, this.dctnObs);
-    
+    /// Example: if pressing W and A, returns DirXY(-1, 1)
     @factory
-    static PlayerPos create(Pos initPos, KbStm keydown, KbStm keyup, DuStm tdelta) {
-        final posDirStm = _makePosStm(initPos, keydown, keyup, tdelta);
-        final posStm = posDirStm.map((x) => x.pos);
-        final dctnObs = Observable(0, posDirStm.map((x) => x.dctn));
-        final posObs = Observable(initPos, posStm);
-        return PlayerPos(posObs, posStm, dctnObs);
-    }
-
-    static Stream<PD> _makePosStm(Pos initPos, KbStm keydown, KbStm keyup, DuStm tdelta) {
-        final pressed = <String>{};
-        keydown.listen((e) {
-            if (!e.repeat) {
-                pressed.add(e.code);
-            }
-        });
-        keyup.listen((e) {
-            pressed.remove(e.code);
-        });
-        PD cnpd(PD prev, Duration dt) => computeNewPosDctn(prev, dt, pressed);
-        return tdelta.scan(
-            (pos: initPos, dctn: 0), cnpd
-        ).asBroadcastStream();
-    }
-
-    /// Given direction integers, compute the row that corresponds to
-    /// the facing diretio
-    static int fromHV(int horizraw, int vertraw) {
-        assert ([-1, 0, 1].contains(horizraw));
-        assert ([-1, 0, 1].contains(vertraw));
-        return switch((horizraw, vertraw)) {
-            (_, 1) => 1,
-            (1, 0) => 3,
-            (-1, 0) => 2,
-            _ => 0,
-        };
-    }
-    
-    static PD computeNewPosDctn(PD prev, Duration dt, Set<String> pressed) {
+    static DirXY fromPressed(Set<String> pressed) {
         /// subtract bool
         int sb(bool a, bool b) => switch((a, b)) {
             (true, true) => 0,
@@ -280,31 +247,88 @@ class PlayerPos {
             (false, true) => -1,
             (false, false) => 0
         };
-        /// 1: moving right; -1: moving left; 0: no horizontal movement
-        final horizraw = sb(pressed.contains("KeyD"), pressed.contains("KeyA"));
-        /// 1: moving up; -1: moving down; 0: no vertical movement
-        final vertraw = sb(pressed.contains("KeyW"), pressed.contains("KeyS"));
-        final norm = sqrt(sq(horizraw) + sq(vertraw));
-        /// Using the type system to ensure I don't divide by zero later
-        final nullyNorm = norm == 0 ? null : norm;
+        return DirXY(
+            sb(pressed.contains("KeyD"), pressed.contains("KeyA")),
+            sb(pressed.contains("KeyW"), pressed.contains("KeyS")),
+        );
+    }
+
+    /// horiz and vert divided by the magnitude
+    (double, double) norm() =>
+        sqrt(sq(horiz) + sq(vert))
+        .then((mag) =>
+            mag == 0.0 ?
+            (0.0, 0.0) :
+            (horiz / mag, vert / mag)
+        );
+
+    @override
+    String toString() {
+        return "DirXY($horiz, $vert)";
+    }
+}
+
+
+class PlayerPos {
+    final Stream<DirXY> dirxyStm;
+    final Stream<Pos> posStm;
+    final Observable<Pos> posObs;
+    final Observable<bool> runningObs;
+
+    PlayerPos(this.dirxyStm, this.posStm, this.posObs, this.runningObs);
+    
+    @factory
+    static PlayerPos create(Pos initPos, KbStm keydown, KbStm keyup, DuStm tdelta) {
+        final pressedStm = _makePressed(keydown, keyup);
+        final dirxyStm = _makeDirXY(pressedStm);
+        final runningObs = _makeRunning(pressedStm);
+        final posStm = _makePos(initPos, tdelta, dirxyStm, runningObs);
+        final posObs = Observable(initPos, posStm);
+        return PlayerPos(dirxyStm, posStm, posObs, runningObs);
+    }
+
+    static Stream<Set<String>> _makePressed(KbStm keydown, KbStm keyup) {
+        final pressed = <String>{};
+        final sc = StreamController<Set<String>>.broadcast();
+        keydown.listen((e) {
+            if (!e.repeat) {
+                pressed.add(e.code);
+                sc.add(pressed);
+            }
+        });
+        keyup.listen((e) {
+            pressed.remove(e.code);
+            sc.add(pressed);
+        });
+        return sc.stream;
+    }
+
+    static Observable<bool> _makeRunning(Stream<Set<String>> pressedStm) {
+        final stm = pressedStm.map((pressed) =>
+            pressed.contains("ShiftLeft") || pressed.contains("ShiftRight")
+        );
+        return Observable(false, stm);
+    }
+
+    static Stream<DirXY> _makeDirXY(Stream<Set<String>> pressedStm) {
+        return pressedStm
+            .map((pressed) => DirXY.fromPressed(pressed))
+            .asBroadcastStream();
+    }
+
+    static Stream<Pos> _makePos(Pos initPos, DuStm tdelta, Stream<DirXY> dirxyStm, Observable<bool> runningObs) {
+        final dirxyObs = Observable(DirXY(0, 0), dirxyStm);
+        return tdelta.scan(
+            initPos, (prev, dt) => _computeNewPos(prev, dt, dirxyObs.latestVal, runningObs.latestVal)
+        ).asBroadcastStream();
+    }
+    
+    static Pos _computeNewPos(Pos prev, Duration dt, DirXY dirxy, bool running) {
         const baseSpeed = 2.0 * 0.001;
-        final running = pressed.contains("ShiftLeft") || pressed.contains("ShiftRight");
         final speed = running ? baseSpeed * 2 : baseSpeed;
         final dist = speed * dt.inMilliseconds;
-        if (nullyNorm == null) {
-            /// no movement happened
-            return prev;  
-        } else {
-            assert (nullyNorm != 0);
-            // avoid faster diagonal speed
-            final distNorm = dist / nullyNorm;
-            final xdiff = horizraw * distNorm;
-            final ydiff = vertraw * distNorm;
-            return (
-              pos: prev.pos + Pos(GC(xdiff), GC(ydiff)),
-              dctn: fromHV(horizraw, vertraw),
-            );
-        }
+        final (xdiff, ydiff) = (dist * dirxy.horiz, dist * dirxy.vert);
+        return (prev + Pos(GC(xdiff), GC(ydiff)));
     }
 }
 
@@ -323,58 +347,53 @@ class PlayerHUD {
     }
 }
 
-/*  
-Given:
-  image _avatarSheet
-  _horizFrames = 4
-  _vertFrames = 4
-  
-
-Want:
-  - Avatar faces the correct direction:
-    - If the movement is to the right, it should face right,
-    - same for the other three directions
-  - Avatar animates using sprite sheet
-  - Avatar does not animate when not moving
-
-Defining movement:
-  - we have the Dctn from the PlayerPos class, passed in to here
-  as `_p1dctn`. 
-
-I think an incremental step might be to use the first frame from each direction
-and then once we get that working, we would make it animate?
-    
-currently it writes the text associated with the Dctn.
-
-Possible next step: use the correct slice from the spritesheet
-  using _drawSlice()
-  
-  
-
-*/
 
 class Avatar implements Drawable {
     final HTMLImageElement _avatarSheet;
-    final Observable<int> _p1dctn;
+    final Observable<DirXY> _dirxyObs;
     final int _horizFrames = 4;
     final int _vertFrames = 4;
-    final _cycle = Observable(0, makeAnimCycler());
+    final Observable<int> _cycle;
 
-    Avatar(this._avatarSheet, this._p1dctn);
+    Avatar(this._avatarSheet, this._dirxyObs, this._cycle);
 
     @Eff("http-req")
     @factory
-    static Future<Avatar> create(Observable<int> p1dctn) async {
+    static Future<Avatar> create(Stream<DirXY> dirxyStm,  Observable<bool> runningObs) async {
         final img = await imageload("../assets/avatar_sheet2.png");
-        return Avatar(img, p1dctn);
+        /// Keep only non-zero directions when determining facing
+        /// so that the avatar persists facing the most recent direction
+        /// when player stops moving
+        final nonz = dirxyStm.where((dirxy) => !dirxy.isZero);
+        final dirxyObs = Observable(DirXY(0, -1), nonz);
+        final cycle = Observable(0, makeAnimCycler(dirxyStm, runningObs));
+        return Avatar(img, dirxyObs, cycle);
     }
 
-    static Stream<int> makeAnimCycler() async* {
+    /// Given DirXY, compute the row that corresponds to the facing direction
+    static int _dxyToSlice(DirXY dirxy) {
+        return switch((dirxy)) {
+            DirXY(horiz: _, vert: 1) => 1,
+            DirXY(horiz: 1, vert: 0) => 3,
+            DirXY(horiz: -1, vert: 0) => 2,
+            _ => 0,
+        };
+    }
+
+    static Stream<int> makeAnimCycler(Stream<DirXY> dirxyStm, Observable<bool> runningObs) async* {
+        var cycling = false;
+        var column = 0;
+        dirxyStm.listen((dirxy) { cycling = !dirxy.isZero; });
+        
         while (true) {
-            for (var i = 0; i < 4; i += 1) {
-                yield i;
-                await Future<void>.delayed(Duration(milliseconds: 200));
+            if (cycling) {
+                yield column;
+                column = (column + 1) % 4;
+            } else {
+                column = 0;
             }
+            final delay = runningObs.latestVal ? 100 : 200;
+            await Future<void>.delayed(Duration(milliseconds: delay));
         }
     }
 
@@ -392,7 +411,8 @@ class Avatar implements Drawable {
         const size = 50;
         final x = canvWidth / 2 - size / 2;
         final y = canvHeight / 2 - size / 2;
-        _drawSlice(ctx, _p1dctn.latestVal, _cycle.latestVal, x, y, size);
+        final row = _dxyToSlice(_dirxyObs.latestVal);
+        _drawSlice(ctx, row, _cycle.latestVal, x, y, size);
     }
 }
 
@@ -422,6 +442,7 @@ class Reticle implements Drawable {
 }
 
 
+@Mut(["ctx"])
 void fillCircle(num x, num y, num radius, Cctx ctx) {
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, 2 * pi);
@@ -1027,8 +1048,13 @@ class Pan {
 }
 
 class Messages {
-    final _incmsg = true;
+    final _incmsg = StreamController<bool>();
     final _shown = StreamController<bool>(); 
+
+    Messages() {
+        _incmsg.add(true);
+        _shown.add(false);
+    }
     
     HTMLElement dispenv() {
         final messagetext = HTML.p()
@@ -1038,33 +1064,46 @@ class Messages {
             ..className = "game-btn msgs-position"
             ..appendChild(messagetext);
 
-        if (_incmsg) {
-            messagetext.classList.add("fa-envelope");
-            msgbutton.classList.add("msgs-unread");
-        } else {
-            messagetext.classList.add("fa-envelope-open");
-            msgbutton.classList.remove("msgs-unread");
-        }
-        msgbutton.onClick.listen((_) => _shown.add(true));
+        _incmsg.stream.listen((x) {
+            if (x) {
+                messagetext.classList.add("fa-envelope");
+                messagetext.classList.remove("fa-envelope-open");
+                msgbutton.classList.add("msgs-unread");
+            }
+            else {
+                messagetext.classList.add("fa-envelope-open");
+                messagetext.classList.remove("fa-envelope");
+                msgbutton.classList.remove("msgs-unread");
+            }
+        });
+
+        msgbutton.onClick.listen((_) {_shown.add(true); _incmsg.add(false);});
         return msgbutton;
-        }
+    }
     
     HTMLElement dispoverlay() {
         final buttontext = HTML.p()
             ..className = "fa-solid fa-chevron-left fa-2x msgs-text";
         final overlay = HTML.div()
             ..id = "overlay"
-            ..className = "hidden"
             ..appendChild(HTML.h2()
                 ..innerText = "Messages")
+            ..appendChild(HTML.span()
+                ..className = "fa-solid fa-circle-user fa-3x")
+            ..appendChild(HTML.p()
+                ..id = "m1-message"
+                ..innerText = """The adversary's scouts are watching in force.
+                  To avoid capture, stay behind the FLOT.
+                  -- don't go any further North than grid 40100 northing.
+                  Once you have determined the transmitter's grid location to within 3 meters, send it to me using your tablet's grid coordinate submission form.""")
             ..appendChild(HTML.button()
                 ..className = "game-btn"
                 ..id = "backbtn"
                 ..appendChild(buttontext)
                 ..onClick.listen((_) => _shown.add(false))
             );
-        _shown.stream.listen((visible) {
-            if (visible) {
+        _shown.stream.listen((x) {
+            if (x) {
                 overlay.classList.remove("hidden");
             }
             else {
@@ -1132,7 +1171,7 @@ void main() async {
     final t1 = await TxRadio.create();
     final sim = Sim(p1.posObs, t1.pos, t1.txpower);
     final bushes = await Objs.create();
-    final avatarlife = await Avatar.create(p1.dctnObs);
+    final avatarlife = await Avatar.create(p1.dirxyStm, p1.runningObs);
     final reticle = Reticle(p1.posObs);
     final zoom = Zoom();
     final grid = Grid(zoom.scale);
