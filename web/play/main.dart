@@ -43,9 +43,6 @@ class HTML {
         el.setAttribute("type", "checkbox");
         return el;
     }
-    // static HTMLDivElement div() {
-    //     return document.createElement('div') as HTMLDivElement;
-    // }
     static HTMLDivElement div({String? id, String? className, List<HTMLElement>? children}) {
         final e = document.createElement('div') as HTMLDivElement;
         if (id != null) {
@@ -227,13 +224,13 @@ abstract class Drawable {
 
 
 enum Dctn { up, down, left, right }
-typedef PD = ({Pos pos, Dctn dctn});
+typedef PD = ({Pos pos, int dctn});
 
 
 class PlayerPos {
     final Observable<Pos> posObs;
     final Stream<Pos> posStm;
-    final Observable<Dctn> dctnObs;
+    final Observable<int> dctnObs;
 
     PlayerPos(this.posObs, this.posStm, this.dctnObs);
     
@@ -241,7 +238,7 @@ class PlayerPos {
     static PlayerPos create(Pos initPos, KbStm keydown, KbStm keyup, DuStm tdelta) {
         final posDirStm = _makePosStm(initPos, keydown, keyup, tdelta);
         final posStm = posDirStm.map((x) => x.pos);
-        final dctnObs = Observable(Dctn.down, posDirStm.map((x) => x.dctn));
+        final dctnObs = Observable(0, posDirStm.map((x) => x.dctn));
         final posObs = Observable(initPos, posStm);
         return PlayerPos(posObs, posStm, dctnObs);
     }
@@ -258,15 +255,22 @@ class PlayerPos {
         });
         PD cnpd(PD prev, Duration dt) => computeNewPosDctn(prev, dt, pressed);
         return tdelta.scan(
-            (pos: initPos, dctn: Dctn.down), cnpd
+            (pos: initPos, dctn: 0), cnpd
         ).asBroadcastStream();
     }
 
-    static Dctn fromHV(int horizraw, int vertraw) =>
-        switch((horizraw, vertraw)) {
-            (1, 0) => Dctn.up,
-            _ => Dctn.down,
+    /// Given direction integers, compute the row that corresponds to
+    /// the facing diretio
+    static int fromHV(int horizraw, int vertraw) {
+        assert ([-1, 0, 1].contains(horizraw));
+        assert ([-1, 0, 1].contains(vertraw));
+        return switch((horizraw, vertraw)) {
+            (_, 1) => 1,
+            (1, 0) => 3,
+            (-1, 0) => 2,
+            _ => 0,
         };
+    }
     
     static PD computeNewPosDctn(PD prev, Duration dt, Set<String> pressed) {
         /// subtract bool
@@ -334,93 +338,53 @@ Want:
   - Avatar does not animate when not moving
 
 Defining movement:
-  PlayerPos class has dx and dy.
-  dx and dy are positive, negative, or zero:
-    example: dx > 0, dy == 0  would be moving in positive x direction.
+  - we have the Dctn from the PlayerPos class, passed in to here
+  as `_p1dctn`. 
 
+I think an incremental step might be to use the first frame from each direction
+and then once we get that working, we would make it animate?
     
+currently it writes the text associated with the Dctn.
+
+Possible next step: use the correct slice from the spritesheet
+  using _drawSlice()
   
   
-
-Not sure about this yet:
-  Observable<({num dx, num dy})> movement;
-
-  
-  
-
-
-(backup options):
-  - Listen to the player's position stream and do subtraction
-  - Listen to keypresses
 
 */
 
 class Avatar implements Drawable {
     final HTMLImageElement _avatarSheet;
-    final Observable<Dctn> _p1dctn;
+    final Observable<int> _p1dctn;
     final int _horizFrames = 4;
     final int _vertFrames = 4;
+    final _cycle = Observable(0, makeAnimCycler());
 
-    // final Observable<int> _curFrame;
-    // final Observable<int> _dirRowStm;
     Avatar(this._avatarSheet, this._p1dctn);
-    // Avatar(this._avatarSheet, this._curFrame, this._dirRowStm);
 
     @Eff("http-req")
     @factory
-    static Future<Avatar> create(Observable<Dctn> p1dctn) async {
+    static Future<Avatar> create(Observable<int> p1dctn) async {
         final img = await imageload("../assets/avatar_sheet2.png");
-
-    //     final frameStream = Stream<int>.periodic(
-    //         const Duration(milliseconds: 200),
-    //         (x) => x % 4,
-    //     );
-
-    //     final frameObs = Observable(0, frameStream);
-    //     final dirRowObs = _makeDirRowObs(p1pos);
-
         return Avatar(img, p1dctn);
     }
 
-    // @Mut(["ctx"])
-    // void _drawSlice(Cctx ctx, int xidx, int yidx, num xpos, num ypos, num size) {
-    //     final fw = _avatarSheet.width / _horizFrames;
-    //     final fh = _avatarSheet.height / _vertFrames;
-    //     ctx.drawImage(_avatarSheet, xidx * fw, yidx * fh, fw, fh, xpos, ypos, size, size);
-    // }
+    static Stream<int> makeAnimCycler() async* {
+        while (true) {
+            for (var i = 0; i < 4; i += 1) {
+                yield i;
+                await Future<void>.delayed(Duration(milliseconds: 200));
+            }
+        }
+    }
 
-    // static Observable<int> _makeDirRowObs(Stream<Pos> p1pos) {
-    //     final sc = StreamController<int>.broadcast();
-
-    //     Pos? prev;
-    //     int lastRow = 0;
-
-    //     p1pos.listen((cur) {
-    //         if (prev == null) {
-    //             prev = cur;
-    //             sc.add(lastRow);
-    //             return;
-    //         }
-
-    //         final dx = cur.x.val - prev!.x.val;
-    //         final dy = cur.y.val - prev!.y.val;
-
-    //         final moving = dx.abs() > 0.0001 || dy.abs() > 0.0001;
-
-    //         if (moving) {
-    //             if (dx.abs() > dy.abs()) {
-    //                 lastRow = dx > 0 ? 3 : 2;
-    //             } else {
-    //                 lastRow = dy > 0 ? 1 : 0;
-    //             }
-    //         }
-
-    //         prev = cur;
-    //         sc.add(lastRow);
-    //     });
-
-    //     return Observable(0, sc.stream);
-    // }
+    /// row = y index; column = x index
+    @Mut(["ctx"])
+    void _drawSlice(Cctx ctx, int row, int column, num xpos, num ypos, num size) {
+        final fw = _avatarSheet.width / _horizFrames;
+        final fh = _avatarSheet.height / _vertFrames;
+        ctx.drawImage(_avatarSheet, column * fw, row * fh, fw, fh, xpos, ypos, size, size);
+    }
 
     @override
     @Mut(["ctx"])
@@ -428,11 +392,7 @@ class Avatar implements Drawable {
         const size = 50;
         final x = canvWidth / 2 - size / 2;
         final y = canvHeight / 2 - size / 2;
-        ctx.fillText(_p1dctn.latestVal.name, x, y);
-    //     final frame = _curFrame.latestVal;
-    //     final row = _dirRowStm.latestVal;
-
-        // _drawSlice(ctx, frame, row, x, y, size);
+        _drawSlice(ctx, _p1dctn.latestVal, _cycle.latestVal, x, y, size);
     }
 }
 
@@ -652,7 +612,6 @@ class LOBCol implements Drawable {
     }
     
     static LOB? decideClosest(ImmuList<LOB> immulobs, GridCC gridcc, MouseEvent ev) {
-        /// TODO
         // window.alert("${gridcc.cush(gridcc.center)}");
         // final lobs = immulobs.values;
         // final shiftx = p1pos.xcu + ev.offsetX - canvWidth / 2;
@@ -1068,7 +1027,7 @@ class Pan {
 }
 
 class Messages {
-    var _incmsg = true;
+    final _incmsg = true;
     final _shown = StreamController<bool>(); 
     
     HTMLElement dispenv() {
