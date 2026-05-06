@@ -12,10 +12,10 @@ num sq(num x) => x * x;
 
 double logbase10(double x) => log(x) / log(10);
 
-/// Returns a sublist including all items except the last item.
+/// Returns a sub-iterable including all items except the last item.
 /// If `orig` is empty, return it.
-List<T> withoutLast<T>(List<T> orig) =>
-    orig.isEmpty ? orig : orig.getRange(0, orig.length - 1).toList();
+Iterable<T> withoutLast<T>(Iterable<T> orig) =>
+    orig.isEmpty ? orig : orig.take(orig.length - 1);
 
 
 extension FunctionPipe<T> on T {
@@ -129,4 +129,17 @@ class SCoLV<T> {
         sc.add(val);
         _latestVal = val;
     }
+}
+
+class ImmuSet<T> {
+    final Set<T> _wrset;
+    ImmuSet(Set<T> elements) : _wrset = Set.unmodifiable(elements);
+    bool contains(T value) => _wrset.contains(value);
+}
+
+extension type ImmuList<T>._(List<T> values) implements Iterable<T> {
+    ImmuList(List<T> vals) : values = List.unmodifiable(vals); 
+    /// Same as `append`, but returns a new list.
+    ImmuList<T> add(T other) =>
+        ImmuList(values + [other]); 
 }

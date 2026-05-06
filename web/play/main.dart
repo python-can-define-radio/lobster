@@ -16,65 +16,6 @@ const canvWidth = 600;
 const canvHeight = 400;
 
 
-typedef Cctx = CanvasRenderingContext2D;
-typedef KbStm = ElementStream<KeyboardEvent>;
-typedef DuStm = Stream<Duration>;
-
-
-
-/// Methods for creating HTML elems
-class HTML {
-    static HTMLButtonElement button() =>
-            document.createElement('button') as HTMLButtonElement;
-    static HTMLCanvasElement canvas() =>
-            document.createElement('canvas') as HTMLCanvasElement;
-    static HTMLDialogElement dialog() =>
-            document.createElement('dialog') as HTMLDialogElement;
-    static HTMLFormElement form() =>
-            document.createElement('form') as HTMLFormElement;
-    static HTMLHeadingElement h2() =>
-            document.createElement("h2") as HTMLHeadingElement;    
-    static HTMLParagraphElement p() =>
-            document.createElement('p') as HTMLParagraphElement;    
-    static HTMLSpanElement span() =>
-            document.createElement('span') as HTMLSpanElement;
-    static HTMLInputElement checkbox() {
-        final el = document.createElement('input') as HTMLInputElement;
-        el.setAttribute("type", "checkbox");
-        return el;
-    }
-    static HTMLDivElement div({String? id, String? className, List<HTMLElement>? children}) {
-        final e = document.createElement('div') as HTMLDivElement;
-        if (id != null) {
-            e.id = id;
-        }
-        if (className != null) {
-            e.className = className;
-        }
-        if (children != null) {
-            for (final c in children) {
-                e.appendChild(c);
-            }
-        }
-        return e;
-    }
-    static HTMLInputElement inputsubmit() {
-        final el = document.createElement('input') as HTMLInputElement;
-        el.setAttribute("type", "submit");
-        return el;
-    }
-}
-
-
-/// Load an image. Wait for it to decode before returning.
-@Eff("http-req")
-Future<HTMLImageElement> imageload(String path) async {
-    final el = HTMLImageElement()..src = path;
-    await el.decode().toDart;
-    return el;
-}
-
-
 class OkCancelDialog {
     final _dialogWrap = HTML.div();
 
@@ -205,6 +146,16 @@ class GC {
     GC operator *(GC other) => GC(val * other.val);
     GC operator /(GC other) => GC(val / other.val);
     String get asfivedig => val.round().toString().padLeft(5, '0');
+    
+    @override
+    bool operator ==(Object other) =>
+        switch (other) {
+            GC(val: final vo) => val == vo,
+            _ => false
+        };
+
+    @override
+    int get hashCode => val.toInt();
 }
 
 @immutable
@@ -215,6 +166,17 @@ class Pos {
 
     Pos operator +(Pos other) =>
         Pos(x + other.x, y + other.y);
+    
+    @override
+    bool operator ==(Object other) =>
+        switch (other) {
+            Pos(x: final xo, y: final yo)
+                => x == xo && y == yo,
+            _ => false
+        };
+
+    @override
+    int get hashCode => (x.val * 1e6 + y.val).toInt();
 }
 
 
@@ -442,61 +404,56 @@ class Reticle implements Drawable {
 }
 
 
-@Mut(["ctx"])
-void fillCircle(num x, num y, num radius, Cctx ctx) {
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, 2 * pi);
-    ctx.fill();
-}
-
-
 class CanvM {
-    final HTMLCanvasElement _canv = HTML.canvas();
-    late final Cctx _ctx;
-    late final ImmuList<Drawable> _drawItems;
-    late final Stream<MouseEvent> click = _canv.onClick;
-    final Observable<double> _scale;
-    late final Observable<Pos>? _panCenter;
-    late final Stream<MEv> mevStm;
+    final HTMLCanvasElement _canv;
+    final Stream<MouseEvent> click;
+    final Stream<MEv> mevStm;
+    final int w;
+    final int h;
 
-    CanvM(String cssid, int w, int h, this._scale, Stream<MouseEvent> docMouseUp) {
-        _canv
+    CanvM(this._canv, this.click, this.mevStm, this.w, this.h);
+
+    @factory
+    static CanvM create(String cssid, int w, int h, Stream<MouseEvent> docMouseUp) {
+        final canv = HTML.canvas()
             ..width = w
             ..height = h
             ..id = cssid;
-        _ctx = _canv.getContext('2d') as Cctx;
         /// as per AI recommendation, the mouseUp should be from the doc in case the cursor leaves the canvas
-        mevStm = makeMouseMoveStm(_canv.onMouseDown, _canv.onMouseMove, docMouseUp);
+        final mevStm = makeMouseMoveStm(canv.onMouseDown, canv.onMouseMove, docMouseUp);
+        return CanvM(canv, canv.onClick, mevStm, w, h);
     }
-    
+
     /// Basically 'constructor part two'. Had to separate to avoid
     /// a circular dependency.
-    void config(Stream<Pos> posStm, List<Drawable> drawItems, [Observable<Pos>? panCenter]) {
-      _drawItems = ImmuList(drawItems);
-      _panCenter = panCenter;
-      posStm.listen(_frameUpdate);
-  }
+    void config(Stream<Pos> p1PosStm, Iterable<Drawable> drawItems, [Observable<double>? scaleObsNully, Observable<Pos>? panCenter]) {
+        final ctx = _canv.getContext('2d') as Cctx;
+        p1PosStm.listen((p1pos) {
+            final scaleObsLV = scaleObsNully?.latestVal ?? 1;
+            _frameUpdate(p1pos, panCenter?.latestVal, ctx, w, h, scaleObsLV, drawItems);
+        });
+    }
     
     HTMLCanvasElement disp() => _canv;
 
-    void _frameUpdate(Pos center) {
-        final panCent = _panCenter == null ? center : _panCenter.latestVal;
-        final gridcc = GridCC(_scale.latestVal, panCent);
-        _ctx.clearRect(0, 0, _canv.width, _canv.height);
-        for (final item in _drawItems.values) {
-            item.draw(_ctx, gridcc);
+    @Mut(["ctx"])
+    static void _frameUpdate(Pos p1pos, Pos? panCenter, Cctx ctx, int w, int h, double scale, Iterable<Drawable> drawItems) {
+        final gridcc = GridCC(scale, panCenter ?? p1pos);
+        ctx.clearRect(0, 0, w, h);
+        for (final item in drawItems) {
+            item.draw(ctx, gridcc);
         }
     }
 }
 
 class Grid implements Drawable {
-    final Observable<double> _scale;
-    Grid(this._scale);
+    final Observable<double> _scaleObs;
+    Grid(this._scaleObs);
     @override
     void draw(Cctx ctx, GridCC gridcc) {
 
         /// Space between gridlines in meters
-        final gridUnitSpcExponent = switch(_scale.latestVal) {
+        final gridUnitSpcExponent = switch(_scaleObs.latestVal) {
             <0.0099  => 3,
             <0.099  => 2,
             <0.99  => 1,
@@ -576,14 +533,6 @@ class SimpleOb implements Drawable {
         return SimpleOb(pos, img, width, height, txpower);  
     }
 
-
-    // SimpleOb(GC x, GC y, this._img, num size)
-    //     : _pos = Pos(x, y) {
-    //     _height = size;
-    //     _width = size * _img.width / _img.height;
-    // }
-
-
     @override
     @Mut(["ctx"])
     void draw(Cctx ctx, GridCC gridcc) {
@@ -594,74 +543,50 @@ class SimpleOb implements Drawable {
 typedef LOB = ({Pos source, Azimuth azimuth, Power rxpow});
 
 
-class ImmuSet<T> {
-    final Set<T> _wrset;
-    ImmuSet(Set<T> elements) : _wrset = Set.unmodifiable(elements);
-    bool contains(T value) => _wrset.contains(value);
-}
-
-extension type ImmuList<T>._(List<T> values) implements Iterable<T> {
-    ImmuList(List<T> vals) : values = List.unmodifiable(vals); 
-}
-
 class LOBCol implements Drawable {
-    late final HTMLInputElement _gatheringLobsCb;
-    late final HTMLButtonElement _clearBtn;
-    late final Stream<ImmuList<LOB>> _lobsStm;
-    late final Observable<ImmuList<LOB>> _lobs;
+    final HTMLInputElement _gatheringLobsCb;
+    final HTMLButtonElement _clearBtn;
+    final Stream<ImmuList<LOB>> _lobsStm;
+    final Observable<ImmuList<LOB>> _lobs;
     /// Selected LOB
-    late final Observable<LOB?> _sellob;
+    final Observable<LOB?> _sellob;
 
-    LOBCol(KbStm keydown, Stream<LOB> univLobs, Stream<MouseEvent> canvclick, Observable<Pos> p1pob, Observable<double> scale) {
-        _gatheringLobsCb = _configGath(keydown);
-        final (clear, cbtn) = _configClearing(keydown);
-        _clearBtn = cbtn;
-        final filtlobs = univLobs.where((_) => _gatheringLobsCb.checked);
-        _lobsStm = _makeLobStream(clear, filtlobs);
-        _lobs = Observable(ImmuList([]), _lobsStm);
-        _sellob = _configChosenLOB(_lobs, canvclick, p1pob, scale);
+    LOBCol(this._gatheringLobsCb, this._clearBtn, this._lobsStm, this._lobs, this._sellob);
+
+    @factory
+    static LOBCol create(KbStm keydown, Stream<LOB> univLobs, Stream<MouseEvent> canvclick, Observable<Pos> center, Observable<double> scaleObs) {
+        final (clear, clearBtn) = _configClearing(keydown);
+        final (lobsStm, gatheringLobsCb) = _makeLobStream(clear, keydown, univLobs);
+        final lobs = Observable(ImmuList<LOB>([]), lobsStm);
+        final sellob = _configChosenLOB(lobs, canvclick, center, scaleObs);
+        return LOBCol(gatheringLobsCb, clearBtn, lobsStm, lobs, sellob);
     }
 
-    static Observable<LOB?> _configChosenLOB(Observable<ImmuList<LOB>> lobs, Stream<MouseEvent> canvclick, Observable<Pos> p1pob, Observable<double> scale) {
+    static Observable<LOB?> _configChosenLOB(Observable<ImmuList<LOB>> lobs, Stream<MouseEvent> canvclick, Observable<Pos> center, Observable<double> scaleObs) {
         final sc = StreamController<LOB?>();
-        canvclick.listen((ev) {
-            final gridcc = GridCC(scale.latestVal, p1pob.latestVal);
-            final chosen = decideClosest(lobs.latestVal, gridcc, ev);
-            print("Selected lob: $chosen");
-            sc.add(chosen);
-        });
+        // canvclick.listen((ev) {
+        //     final gridcc = GridCC(scaleObs.latestVal, center.latestVal);
+        //     final chosen = decideClosest(lobs.latestVal, gridcc, ev);
+        //     print("Selected lob: $chosen");
+        //     sc.add(chosen);
+        // });
         return Observable(null, sc.stream);
     }
     
-    static LOB? decideClosest(ImmuList<LOB> immulobs, GridCC gridcc, MouseEvent ev) {
-        // window.alert("${gridcc.cush(gridcc.center)}");
-        // final lobs = immulobs.values;
-        // final shiftx = p1pos.xcu + ev.offsetX - canvWidth / 2;
-        // final shifty = p1pos.ycu + ev.offsetY - canvHeight / 2;
-        // num dist(LOB lob) {
-        //     final dx = (lob.source.xcu - shiftx).abs();
-        //     final dy = (lob.source.ycu - shifty).abs();
-        //     return dx + dy;
-        // }
-        // lobs.sort((a, b) => dist(a).compareTo(dist(b)));
-        // final near = lobs.where((lob) => dist(lob) < 40);
-        // return near.firstOrNull;
-        
-        /// this is temporary
-        return immulobs.values.firstOrNull;
-    }
-    
-    /// Creates and returns a checkbox.
-    /// The checkbox's `checked` attribute is mutated by the keydown stream.
-    static HTMLInputElement _configGath(KbStm keydown) {
-        final gcb = HTML.checkbox()
-            ..id = "lob-cb"
-            ..defaultChecked = true;
-        keydown
-            .where((ev) => ev.code == "KeyG")
-            .listen((_) => gcb.checked = !gcb.checked);
-        return gcb;
-    }
+    // static LOB? decideClosest(ImmuList<LOB> immulobs, GridCC gridcc, MouseEvent ev) {
+    //     window.alert("${gridcc.cush(gridcc.center)}");
+    //     final lobs = immulobs.values;
+    //     final shiftx = p1pos.xcu + ev.offsetX - canvWidth / 2;
+    //     final shifty = p1pos.ycu + ev.offsetY - canvHeight / 2;
+    //     num dist(LOB lob) {
+    //         final dx = (lob.source.xcu - shiftx).abs();
+    //         final dy = (lob.source.ycu - shifty).abs();
+    //         return dx + dy;
+    //     }
+    //     lobs.sort((a, b) => dist(a).compareTo(dist(b)));
+    //     final near = lobs.where((lob) => dist(lob) < 40);
+    //     return near.firstOrNull;
+    // }
     
     /// Returns a stream and the clear button.
     /// Events in the stream (both clicks and keypresses) should cause a clear.
@@ -674,20 +599,27 @@ class LOBCol implements Drawable {
         return (StreamGroup.merge([cDown, cbtn.onClick]), cbtn);
     }
 
-    /// Makes a stream of the lobs saved on the simulated DFing equipment,
+    /// Create a stream of the lobs saved on the simulated DFing equipment,
     /// not to be confused with the stream of lobs coming from the universe.
-    static Stream<ImmuList<LOB>> _makeLobStream(Stream<Object> clear, Stream<LOB> filtlobs)    {
-        final sc = StreamController<ImmuList<LOB>>();
-        final curLobList = <LOB>[];
+    /// Also create the checkbox which controls whether the user is gathering lobs.
+    static (Stream<ImmuList<LOB>>, HTMLInputElement) _makeLobStream(
+            Stream<Object> clear, KbStm keydown, Stream<LOB> univLobs)
+    {
+        final gatheringLobsCb = HTML.checkbox()..id = "lob-cb"..defaultChecked = true;
+        keydown
+            .where((ev) => ev.code == "KeyG")
+            .listen((_) => gatheringLobsCb.checked = !gatheringLobsCb.checked);
+        final filtlobs = univLobs.where((_) => gatheringLobsCb.checked);
+        
+        final curlobs = SCoLV.create(ImmuList<LOB>([]));
         filtlobs.listen((lob) {
-            curLobList.add(lob); 
-            sc.add(ImmuList(curLobList));
+            curlobs.set(curlobs.latestVal.add(lob));
         });
         clear.listen((_) {
-            curLobList.clear();
-            sc.add(ImmuList(curLobList));
+            curlobs.set(ImmuList([]));
         });
-        return sc.stream.asBroadcastStream();
+        
+        return (curlobs.stream, gatheringLobsCb);
     }
 
     static String _fmtpow(LOB? lob) {
@@ -710,27 +642,33 @@ class LOBCol implements Drawable {
         ]));
     }
 
+    @Mut(["ctx"])
+    static void _drawOne(Cctx ctx, GridCC gridcc, LOB lob, String color) {
+        const arbitrarilyLargeLobLength = 1000;
+        final dest = lob.source + Pos(
+            GC(arbitrarilyLargeLobLength * lob.azimuth.cosresult),
+            GC(arbitrarilyLargeLobLength * lob.azimuth.sinresult)
+        );
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = color.toJS;
+        gridcc.drawLine(lob.source, dest, ctx);
+    }
+
+    /// Same as plain `draw()` but the dependencies are explicit.
+    @Mut(["ctx"])
+    static void drawStatic(Iterable<LOB> lobs, LOB? sellob, Cctx ctx, GridCC gridcc) {
+        void drawOne(LOB lob, String color) => _drawOne(ctx, gridcc, lob, color);
+        for (final lob in withoutLast(lobs)) {
+            drawOne(lob, "orange");
+        }
+        lobs.lastOrNull?.then((lob) => drawOne(lob, "red"));
+        sellob?.then((lob) => drawOne(lob, "blue"));
+    }
+
     @override
     @Mut(["ctx"])
     void draw(Cctx ctx, GridCC gridcc) {
-        final lobs = _lobs.latestVal.values;
-
-        void drawOne(LOB lob, {String color = "orange"}) {
-            const arbitrarilyLargeLobLength = 1000;
-            final dest = lob.source + Pos(
-                GC(arbitrarilyLargeLobLength * lob.azimuth.cosresult),
-                GC(arbitrarilyLargeLobLength * lob.azimuth.sinresult)
-            );
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = color.toJS;
-            gridcc.drawLine(lob.source, dest, ctx);
-        }
-
-        for (final lob in withoutLast(lobs)) {
-            drawOne(lob);
-        }
-        lobs.lastOrNull?.then((lob) => drawOne(lob, color: "red"));
-        _sellob.latestVal?.then((lob) => drawOne(lob, color: "blue"));
+        drawStatic(_lobs.latestVal.values, _sellob.latestVal, ctx, gridcc);
     }
 }
 
@@ -839,37 +777,60 @@ class MissionUI {
             Mission.m1 => _form(),
         };
         
-    static Result<(int, int), String> parseSubmission(String submission) {
-        const errmsg = "You must enter two numbers separated by one space.\nExample: 12345 45678";
+    static Result<Pos, String> parseSubmission(String submission) {
+        final errLen = "Grid coordinates must be entered as 4, 6, 8, or 10 digit grid, according to the mission requirements.";
+        final errGeneric = "You must enter two positive numbers separated by one space.\nExample: 12345 45678";
         
-        /// If `val` is a list of exactly two integers, return them wrapped in `Success`.
+        /// If `val` is a list of exactly two positive integers, return them wrapped in `Success`.
         /// Else, return a Failure.
-        Result<(int, int), String> twoInts(List<int?> val) => 
-            switch (val) {
-                [int easting, int northing] => Success((easting, northing)),
-                _ => Failure(errmsg),
-            };
+        Result<Pos, String> twoPsvInts(Iterable<int?> val) {
+            if (val case [int easting, int northing] 
+                    when easting >= 0 && northing >= 0) {
+                return Success(Pos(GC(easting), GC(northing)));
+            } else {
+                return Failure(errGeneric);
+            } 
+        }
+
+        bool allSameLen(Iterable<String> values) => 
+            values.map((x) => x.length)
+            .then((x) => Set.of(x))
+            .then((x) => x.length == 1);
 
         return submission
             .trim()
-            .then((x) => succIf(x, x.length == 11, errmsg))
-            .map((x) => x.split(" "))
+            .then((x) => x.split(" "))
+            .then((x) => succIf(x, allSameLen(x), errLen))
             .map((x) => x.map(int.tryParse).toList())
-            .map((x) => twoInts(x))
+            .map((x) => twoPsvInts(x))
             .then((x) => flatten(x));
     }
+
+    static Result<String, String> checkCoords(Pos pos) =>
+        pos == Pos(GC(12345), GC(45678))
+        ? Success("Correct!")
+        : Failure("Those grid coordinates were incorrect. Try again.");
     
     @Eff("window.open")
+    void _showAllowGoHome(String msg) {
+        _dialog.showWith(msg).then((response) {
+            if (response) {
+                window.open("..", "_self");
+            }
+        });
+    }
+
+    @Eff("window.open")
     void _handleSubmit(String submission) {
-        final p = parseSubmission(submission);
-        final msg = switch (p) { Success(val: final coords) => "you submitted $coords. Not sure if correct.", Failure(val: final errmsg) => "Error: $errmsg" };
-        _dialog
-            .showWith(msg)
-            .then((response) {
-                if (response) {
-                    window.open("..", "_self");
-                }
-            });   
+        final chk = parseSubmission(submission)
+            .map((x) => checkCoords(x))
+            .then((x) => flatten(x));
+        switch(chk) {
+            case Success(val: final succmsg):
+                _showAllowGoHome(succmsg);
+            case Failure(val: final errmsg):
+                _dialog.showWith(errmsg);
+        }
     }
 
     @Eff("window.open")
@@ -896,33 +857,36 @@ class MissionUI {
 }
 
 /// Previous name: attachElems()
-HTMLElement assembleElems(CanvM cmLife, CanvM cmLob, {required List<HTMLElement> tabletChildren}) {
-    final cmLobHudWrapped = HTML.div(id: "hudwrap", children: [cmLob.disp()]);
+HTMLElement assembleElems(CanvM cmLife, CanvM cmLob, {required Iterable<HTMLElement> tabletChildren}) {
+    final cmLobHudWrapped = <HTMLElement>[HTML.div(
+        id: "hudwrap",
+        children: [cmLob.disp()]
+    )];
     final cmLobAndAssociated = HTML.div(
         id: "cmlobparent",
-        children: <HTMLElement>[cmLobHudWrapped] + tabletChildren);
-    
+        children: cmLobHudWrapped.followedBy(tabletChildren)
+    );
     return HTML.div(children: [
-    HTML.div(
-        id: "two-canvasses",
-        children: [cmLife.disp(), cmLobAndAssociated]
-    )
-]);
+        HTML.div(
+            id: "two-canvasses",
+            children: [cmLife.disp(), cmLobAndAssociated]
+        )
+    ]);
 }
 
 
 class Zoom {
-    final Observable<double> scale;
+    final Observable<double> scaleObs;
     final HTMLElement _dispElem;
 
-    Zoom(this.scale, this._dispElem);
+    Zoom(this.scaleObs, this._dispElem);
     
     @factory
     static Zoom create() {
         const initzoom = 1.0;
         final (elem, inoutstm) = makePlusMinus();
-        final scale = Observable(initzoom, makeScale(initzoom, inoutstm));
-        return Zoom(scale, elem);
+        final scaleObs = Observable(initzoom, makeScale(initzoom, inoutstm));
+        return Zoom(scaleObs, elem);
     }
 
     /// Return a stream of the current zoom level.
@@ -976,43 +940,6 @@ class Zoom {
 }
 
 
-/// A custom Mouse Event record for use with makeMouseMoveStm because I don't like how JS handles mouse events.
-typedef MEv = ({bool isDown, num dx, num dy});
-
-/// Given the mouseDown, mouseMove, and mouseUp streams from the browser,
-/// return a stream of `MEv`. Example:
-/// Mouse is not clicked. Mouse moves from 30, 90 to 35, 92.
-/// This stream will contain (isdown: false, dx: 5, dy: 2).
-/// Mouse is clicked. Mouse moves to 37, 100.
-/// This stream will contain (isdown: true, dx: 2, dy: 8).
-Stream<MEv> makeMouseMoveStm(Stream<MouseEvent> mouseDown, Stream<MouseEvent> mouseMove, Stream<MouseEvent> mouseUp) {
-    final sc = StreamController<MEv>();
-    ({num x, num y})? prev;
-    var isDown = false;
-    mouseDown.listen((e) {
-        isDown = true;
-        prev = (x: e.clientX, y: e.clientY);
-    });
-    mouseUp.listen((_) {
-        isDown = false;
-        prev = null;
-    });
-    mouseMove.listen((e) {
-        final p = prev;
-        // First move after down OR first ever move → no delta
-        if (p == null) {
-            prev = (x: e.clientX, y: e.clientY);
-            return;
-        }
-        final dx = e.clientX - p.x;
-        final dy = e.clientY - p.y;
-        prev = (x: e.clientX, y: e.clientY);
-        sc.add((isDown: isDown, dx: dx, dy: dy));
-    });
-    return sc.stream.asBroadcastStream();
-}
-
-
 class Pan {
     final Observable<Pos> center;
     final HTMLButtonElement _resetBtn;
@@ -1020,7 +947,7 @@ class Pan {
     Pan(this.center, this._resetBtn);
 
     @factory
-    static Pan create(Stream<MEv> mevStm, Observable<Pos> p1pob, Stream<Pos> p1stm, Observable<double> scale) {
+    static Pan create(Stream<MEv> mevStm, Observable<Pos> p1pob, Stream<Pos> p1stm, Observable<double> scaleObs) {
         final pannedCenter = SCoLV.create(p1pob.latestVal);
         final recenterBtn = HTML.button()..innerText = "Re-center"..id = "recenter-btn"..className = "game-btn hidden";
         final followPlayer = SCoLV.create(true);
@@ -1032,7 +959,7 @@ class Pan {
         });
 
         mevStm.where((mev) => mev.isDown).listen((mev) {
-            final diff = GridCC(scale.latestVal, pannedCenter.latestVal).gc(-mev.dx, mev.dy);
+            final diff = GridCC(scaleObs.latestVal, pannedCenter.latestVal).gc(-mev.dx, mev.dy);
             pannedCenter.set(pannedCenter.latestVal + diff);
             followPlayer.set(false);
         });
@@ -1172,15 +1099,15 @@ void main() async {
     final avatarlife = await Avatar.create(p1.dirxyStm, p1.runningObs);
     final reticle = Reticle(p1.posObs);
     final zoom = Zoom.create();
-    final grid = Grid(zoom.scale);
-    final cmLife = CanvM("life", canvWidth, canvHeight, Observable(1, Stream.empty()), document.body!.onMouseUp);
-    final cmLob = CanvM("hud", canvWidth, canvHeight, zoom.scale, document.body!.onMouseUp);
-    final lobc = LOBCol(keydown, sim.univLobs, cmLob.click, p1.posObs, zoom.scale);
+    final grid = Grid(zoom.scaleObs);
+    final cmLife = CanvM.create("life", canvWidth, canvHeight, document.body!.onMouseUp);
+    final cmLob = CanvM.create("hud", canvWidth, canvHeight, document.body!.onMouseUp);
+    final lobc = LOBCol.create(keydown, sim.univLobs, cmLob.click, p1.posObs, zoom.scaleObs);
     final mui = MissionUI(window.location.href, t1.pos);
     final msgs = Messages();
-    final pan = Pan.create(cmLob.mevStm, p1.posObs, p1.posStm, zoom.scale);
+    final pan = Pan.create(cmLob.mevStm, p1.posObs, p1.posStm, zoom.scaleObs);
     cmLife.config(p1.posStm, [avatarlife, bushes, t1]);
-    cmLob.config(p1.posStm, [lobc, grid, reticle], pan.center);
+    cmLob.config(p1.posStm, [lobc, grid, reticle], zoom.scaleObs, pan.center);
     document.getElementById("gameroot")!.replaceChildren(
         assembleElems(cmLife, cmLob, tabletChildren: [
             phud.disp(),

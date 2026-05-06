@@ -2,11 +2,10 @@
 Next steps (overview) -- details for each below in same order
 
 1 week: recommend we publish version 2 when these are complete
-- Keyword 'late'
-- Selected lob
 - Mission instructions (success)
 
 1 month:
+- Selected lob
 - Compass
 - Tutorial 
 - Grid lines modification
@@ -24,24 +23,19 @@ Next steps (overview) -- details for each below in same order
 ##########                         1 week                          ##########
 #############################################################################
 #############################################################################
-Keyword 'late':
-    - Rework CanvM and all other classes to have very few instance attributes and no late ones
-
-#############################################################################
-Selected lob:
-    - currently cannot select a specific lob and we are seeing no information on that lob
-
-#############################################################################
 Mission instructions:
     Success:
-    - Check for success when grid coordinates are entered.
+    - Check real coords of tx. Right now it's arbtirary 12345 stuff
     - Right canvas would have the dotted line for the FLOT, Discuss
-    - Left canvas would have stick figures or whatever troops and equipment maybe
 
 #############################################################################
 #############################################################################
 ##########                        1 month                          ##########
 #############################################################################
+#############################################################################
+Selected lob:
+    - currently cannot select a specific lob and we are seeing no information on that lob
+
 #############################################################################
 Compass:
     - We need to discuss different execution possibilities.
