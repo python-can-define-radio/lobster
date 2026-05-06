@@ -25,10 +25,12 @@ R11. With the exception of `disp()` (and `dispCtl`, etc), methods MUST return ob
 R12. `disp()` MUST be called only within `assembleElems()`.
 R13. All objects which are global MUST be neither mutable nor reassignable.
 R14. The only two global objects (other that functions and classes) MUST be canvWidth and canvHeight.
-R15. If a function mutates an object that is an argument/parameter of the function, tht function MUST be annotated with the `Mut` metadata to indicate what it is mutating.
+R15. If a function mutates an object that is an argument/parameter of the function, that function MUST be annotated with the `Mut` metadata to indicate what it is mutating. Note that the `Mut` metadata is not needed if the object being mutated is declared in the function body.
 R16. If a function uses the `window` global JS object, it MUST be annotated with the `Eff` metadata and a string description of the side effect.
 R17. The `document` global JS object MUST only occur in the following places: (a) the `HTML` class, (b) `main()`.
 R18. `draw` functions MUST NOT mutate or reassign any instance variables.
 R19. `draw` functions MAY mutate `ctx`.
+R20. All Streams MUST be broadcast streams.
+R21. `late` keyword MUST not be used.
 
 Does the code follow these updated rules?

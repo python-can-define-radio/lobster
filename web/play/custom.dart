@@ -3,11 +3,13 @@ library;
 
 
 import 'dart:async';
+import 'dart:math' show log;
 
 
 /// Square a number
 num sq(num x) => x * x;
 
+double logbase10(double x) => log(x) / log(10);
 
 /// Returns a sublist including all items except the last item.
 /// If `orig` is empty, return it.

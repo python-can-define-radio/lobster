@@ -239,7 +239,7 @@ class DirXY {
 
     /// Example: if pressing W and A, returns DirXY(-1, 1)
     @factory
-    static DirXY fromPressed(Set<String> pressed) {
+    static DirXY fromPressed(ImmuSet<String> pressed) {
         /// subtract bool
         int sb(bool a, bool b) => switch((a, b)) {
             (true, true) => 0,
@@ -287,30 +287,30 @@ class PlayerPos {
         return PlayerPos(dirxyStm, posStm, posObs, runningObs);
     }
 
-    static Stream<Set<String>> _makePressed(KbStm keydown, KbStm keyup) {
+    static Stream<ImmuSet<String>> _makePressed(KbStm keydown, KbStm keyup) {
         final pressed = <String>{};
-        final sc = StreamController<Set<String>>.broadcast();
+        final sc = StreamController<ImmuSet<String>>.broadcast();
         keydown.listen((e) {
             if (!e.repeat) {
                 pressed.add(e.code);
-                sc.add(pressed);
+                sc.add(ImmuSet(pressed));
             }
         });
         keyup.listen((e) {
             pressed.remove(e.code);
-            sc.add(pressed);
+            sc.add(ImmuSet(pressed));
         });
         return sc.stream;
     }
 
-    static Observable<bool> _makeRunning(Stream<Set<String>> pressedStm) {
+    static Observable<bool> _makeRunning(Stream<ImmuSet<String>> pressedStm) {
         final stm = pressedStm.map((pressed) =>
             pressed.contains("ShiftLeft") || pressed.contains("ShiftRight")
         );
         return Observable(false, stm);
     }
 
-    static Stream<DirXY> _makeDirXY(Stream<Set<String>> pressedStm) {
+    static Stream<DirXY> _makeDirXY(Stream<ImmuSet<String>> pressedStm) {
         return pressedStm
             .map((pressed) => DirXY.fromPressed(pressed))
             .asBroadcastStream();
@@ -552,55 +552,59 @@ class Grid implements Drawable {
 }
 
 
-class TxRadio implements Drawable {
-    final Pos pos = Pos(GC(70008), GC(40012));
-    final Power txpower = Power(mW: 100);
+class SimpleOb implements Drawable {
+    final Pos pos;
     final HTMLImageElement _img;
-    late final num _w;
-    late final num _h;
+    final num _width;
+    final num _height;
+    final Power? txpower; 
 
-    TxRadio(this._img) {
-        const size = 30;
-        _h = size;
-        _w = size * _img.width / _img.height;
+    SimpleOb(this.pos, this._img, this._width, this._height, this.txpower);
+
+    /// Load image and create instance.
+    /// This is a @factory, but dart's static checker doesn't recognize it
+    @Eff("http-req")
+    static Future<SimpleOb> create(String imgPath, Pos pos, num height, [Power? txpower]) async {
+        final img = await imageload(imgPath);
+        return SimpleOb.fromImg(img, pos, height, txpower);
     }
 
-    @Eff("http-req")
+    /// Given a pre-loaded image, create instance.
     @factory
-    static Future<TxRadio> create() async { return TxRadio(await imageload("../assets/tx.png")); }
+    static SimpleOb fromImg(HTMLImageElement img, Pos pos, num height, [Power? txpower]) {
+        final width = height * img.width / img.height;
+        return SimpleOb(pos, img, width, height, txpower);  
+    }
+
+
+    // SimpleOb(GC x, GC y, this._img, num size)
+    //     : _pos = Pos(x, y) {
+    //     _height = size;
+    //     _width = size * _img.width / _img.height;
+    // }
+
 
     @override
     @Mut(["ctx"])
-    void draw(Cctx ctx, GridCC gridcc) { gridcc.drawImage(pos, _img, _w, _h, ctx); }
-}
-
-
-class SimpleOb implements Drawable {
-    final Pos _pos;
-    final HTMLImageElement _img;
-    late final num _width;
-    late final num _height;
-
-    SimpleOb(GC x, GC y, this._img, num size)
-        : _pos = Pos(x, y) {
-        _height = size;
-        _width = size * _img.width / _img.height;
-    }
-
-    @override
     void draw(Cctx ctx, GridCC gridcc) {
-        gridcc.drawImage(_pos, _img, _width, _height, ctx);
+        gridcc.drawImage(pos, _img, _width, _height, ctx);
     }
 }
 
 typedef LOB = ({Pos source, Azimuth azimuth, Power rxpow});
 
+
+class ImmuSet<T> {
+    final Set<T> _wrset;
+    ImmuSet(Set<T> elements) : _wrset = Set.unmodifiable(elements);
+    bool contains(T value) => _wrset.contains(value);
+}
+
 class ImmuList<T> {
     /// wrapped list
     final List<T> _wrlist;
-    /// I don't know how to make a shallow copy in Dart
-    List<T> get values => _wrlist.map((x) => x).toList();
-    ImmuList(List<T> vals) : _wrlist = vals.map((x) => x).toList();
+    List<T> get values => _wrlist;
+    ImmuList(List<T> vals) : _wrlist = List.unmodifiable(vals);
 }
 
 class LOBCol implements Drawable {
@@ -735,21 +739,23 @@ class LOBCol implements Drawable {
 
 
 class Azimuth {
-    late final double sinresult;
-    late final double cosresult;
+    final double sinresult;
+    final double cosresult;
+
+    Azimuth(this.sinresult, this.cosresult);
+
     /// Given the player (receiver) position and the transmitter position
     /// compute the azimuth from the player's perspective.
-    Azimuth.fromPositions(Pos p1pos, Pos txpos) {
+    @factory
+    static Azimuth fromPositions(Pos p1pos, Pos txpos) {
         final xd = txpos.x.val - p1pos.x.val;
         final yd = txpos.y.val - p1pos.y.val;
         final dist = sqrt(xd * xd + yd * yd);
-        sinresult = yd / dist;
-        cosresult = xd / dist;
+        return Azimuth(yd / dist, xd / dist);
     }
-    Azimuth.fromSinCos(this.sinresult, this.cosresult);
 }
 
-double logbase10(double x) => log(x) / log(10);
+
 
 class Power {
     final double mW;
@@ -762,39 +768,43 @@ class Power {
 
 /// Simulator. A class that simulates LOBs.
 class Sim {
-    final _random = Random();
     /// LOBs coming from the universe (as opposed to those which we have gathered)
-    late final Stream<LOB> univLobs;
+    final Stream<LOB> univLobs;
+    
+    Sim(this.univLobs);
+    
     /// p1pob: Player 1 Position Observable
-    Sim(Observable<Pos> p1pob, Pos txpos, Power txpower) {
-        univLobs = 
-            Stream<Null>.periodic(Duration(milliseconds: 50))
-                .where((_) => _random.nextInt(5) == 0)
-                .map((_) => _makelob(p1pob.latestVal, txpos, txpower))
+    @factory
+    static Sim create(Observable<Pos> p1pob, Pos txpos, Power txpower) {
+        final random = Random();
+        final univLobs = Stream<Null>.periodic(Duration(milliseconds: 50))
+                .where((_) => random.nextInt(5) == 0)
+                .map((_) => _makelob(p1pob.latestVal, txpos, txpower, random))
                 .asBroadcastStream();
+        return Sim(univLobs);
     }
 
-    LOB _makelob(Pos p1pos, Pos txpos, Power txpower) => (
+    static LOB _makelob(Pos p1pos, Pos txpos, Power txpower, Random random) => (
         source: p1pos,
-        azimuth: _noi(Azimuth.fromPositions(p1pos, txpos)),
-        rxpow: _distLoss(p1pos, txpos, txpower),
+        azimuth: _noi(Azimuth.fromPositions(p1pos, txpos), random),
+        rxpow: _distLoss(p1pos, txpos, txpower, random),
     );
 
     /// add random noise. Need to figure out whether this is typical distribution
-    Azimuth _noi(Azimuth a) {
+    static Azimuth _noi(Azimuth a, Random random) {
         p3(double x) => x * x * x;
-        return Azimuth.fromSinCos(
-            a.sinresult + 0.003 * p3(6 * (_random.nextDouble() - 0.5)),
-            a.cosresult + 0.003 * p3(6 * (_random.nextDouble() - 0.5)),
+        return Azimuth(
+            a.sinresult + 0.003 * p3(6 * (random.nextDouble() - 0.5)),
+            a.cosresult + 0.003 * p3(6 * (random.nextDouble() - 0.5)),
         );
     }
 
     /// A very rudimentary path loss computation
-    Power _distLoss(Pos p1pos, Pos txpos, Power txpower) {
+    static Power _distLoss(Pos p1pos, Pos txpos, Power txpower, Random random) {
         final xd = txpos.x.val - p1pos.x.val;
         final yd = txpos.y.val - p1pos.y.val;
         final dist = sqrt(xd * xd + yd * yd);
-        return txpower * 0.1 * (1 / sq(dist)) * (_random.nextDouble() * 0.1 + 0.9);
+        return txpower * 0.1 * (1 / sq(dist)) * (random.nextDouble() * 0.1 + 0.9);
     }
 }
 
@@ -914,14 +924,17 @@ HTMLElement assembleElems(CanvM cmLife, CanvM cmLob, PlayerHUD phud, LOBCol lobc
 
 
 class Zoom {
-    late final Observable<double> scale;
-    late final HTMLElement _dispElem;
+    final Observable<double> scale;
+    final HTMLElement _dispElem;
 
-    Zoom() {
+    Zoom(this.scale, this._dispElem);
+    
+    @factory
+    static Zoom create() {
         const initzoom = 1.0;
-        final (elem, stm) = makePlusMinus();
-        _dispElem = elem;
-        scale = Observable(initzoom, makeScale(initzoom, stm));
+        final (elem, inoutstm) = makePlusMinus();
+        final scale = Observable(initzoom, makeScale(initzoom, inoutstm));
+        return Zoom(scale, elem);
     }
 
     /// Return a stream of the current zoom level.
@@ -931,8 +944,8 @@ class Zoom {
     /// Example:
     ///  If initzoom = 1 and stm produces [true, false, false, true],
     /// then the output stream would be 1, 2, 1, 0.5, 1.
-    static Stream<double> makeScale(double initzoom, Stream<bool> stm) {
-        return stm.scan<double>(
+    static Stream<double> makeScale(double initzoom, Stream<bool> inoutstm) {
+        return inoutstm.scan<double>(
             initzoom,
             (prev, zoomIn) => zoomIn ?
               prev * 2 :
@@ -1125,30 +1138,19 @@ class Objs implements Drawable {
     @Eff("http-req")
     @factory
     static Future<Objs> create() async {
-        /// the top-left end of the random distribution 
-        final (x, y) = (GC(69900), GC(39900));
-        
+        final topleft = Pos(GC(69900), GC(39900));
         final random = Random();
         final bush1 = await imageload("../assets/bush_1.png");
         final bush2 = await imageload("../assets/bush_2.png");
 
         SimpleOb makebush() {
-            final size = random.nextInt(6) * 5 + 20;
+            final height = random.nextInt(6) * 5 + 20;
             final img = random.nextBool() ? bush1 : bush2;
-            return SimpleOb(
-                x + GC(random.nextDouble() * 200),
-                y + GC(random.nextDouble() * 200),
-                img,
-                size,
-            );
+            final posShift = Pos(GC(random.nextDouble() * 200), GC(random.nextDouble() * 200));
+            return SimpleOb.fromImg(img, topleft + posShift, height);
         }
 
-        return Objs(ImmuList(
-            [for (var i = 0; i < 2000; i++) makebush()]
-            + [SimpleOb(GC(70000), GC(40000), bush1, 10),
-               SimpleOb(GC(70005), GC(40000), bush1, 10),
-               SimpleOb(GC(70010), GC(40000), bush1, 10)]
-        ));
+        return Objs(ImmuList([for (var i = 0; i < 2000; i++) makebush()]));
     }
 
     @override
@@ -1168,12 +1170,12 @@ void main() async {
     final frameStm = makeFrameStm();
     final p1 = PlayerPos.create(Pos(GC(70012), GC(40008)), keydown, keyup, frameStm);
     final ph = PlayerHUD(p1.posStm);
-    final t1 = await TxRadio.create();
-    final sim = Sim(p1.posObs, t1.pos, t1.txpower);
+    final t1 = await SimpleOb.create("../assets/tx.png", Pos(GC(70008), GC(40012)), 30, Power(mW: 100));
+    final sim = Sim.create(p1.posObs, t1.pos, t1.txpower!);
     final bushes = await Objs.create();
     final avatarlife = await Avatar.create(p1.dirxyStm, p1.runningObs);
     final reticle = Reticle(p1.posObs);
-    final zoom = Zoom();
+    final zoom = Zoom.create();
     final grid = Grid(zoom.scale);
     final cmLife = CanvM("life", canvWidth, canvHeight, Observable(1, Stream.empty()), document.body!.onMouseUp);
     final cmLob = CanvM("hud", canvWidth, canvHeight, zoom.scale, document.body!.onMouseUp);
