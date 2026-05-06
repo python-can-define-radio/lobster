@@ -9,6 +9,7 @@ D3. If we say something must be "notExtChg", that means it must be "not External
  - immutable types (such as strings)
  - Stream (even though they are mutable, they are not mutable outside of where they are defined)
  - Observable (same explanation as Stream)
+D4. "the disp family" refers to any method/function whose name contains 'disp'. Examples: 'disp()', 'dispCtl'.
 
 Rules section 1:
 R1. You MUST never use the `dart:html` library, as it is deprecated.
@@ -20,9 +21,8 @@ R6. When I provide code and ask you to change it, you MUST keep all comments whi
 R7. All indentation MUST be multiples of four spaces. You MUST ignore the Dart standard which suggests multiples of only two spaces.
 
 Rules section 2:
-R10. All instance variables MUST be notExtChg. The one exception to this rule is the Observable class's `_latestVal`.
-R11. With the exception of `disp()` (and `dispCtl`, etc), methods MUST return objects that are notExtChg.
-R12. `disp()` MUST be called only within `assembleElems()`.
+R11. With the exception of the disp family, methods MUST return objects that are notExtChg.
+R12. The disp family MUST be called only in the code location 'tabletChildren: [ ... ]', which is in `main()`.
 R13. All objects which are global MUST be neither mutable nor reassignable.
 R14. The only two global objects (other that functions and classes) MUST be canvWidth and canvHeight.
 R15. If a function mutates an object that is an argument/parameter of the function, that function MUST be annotated with the `Mut` metadata to indicate what it is mutating. Note that the `Mut` metadata is not needed if the object being mutated is declared in the function body.
@@ -32,5 +32,7 @@ R18. `draw` functions MUST NOT mutate or reassign any instance variables.
 R19. `draw` functions MAY mutate `ctx`.
 R20. All Streams MUST be broadcast streams.
 R21. `late` keyword MUST not be used.
+R22. All public instance variables MUST be notExtChg. The one exception to this rule is the Observable class's `_latestVal`.
+R23. All private instance variables (that is, those which begin with an underscore) MUST be either notExtChg or must have the type StreamController.
 
 Does the code follow these updated rules?

@@ -4,6 +4,7 @@ library;
 
 import 'dart:async';
 import 'dart:math' show log;
+import 'package:meta/meta.dart';
 
 
 /// Square a number
@@ -100,5 +101,32 @@ Result<T, String> succIf<T>(T val, bool cond, String errmsg) {
         return Success(val);
     } else {
         return Failure(errmsg);
+    }
+}
+
+
+/// Stream Controller, with access to the Latest Value
+class SCoLV<T> {
+    final StreamController<T> sc;
+    T _latestVal;
+
+    SCoLV(this.sc, this._latestVal);
+    
+    T get latestVal => _latestVal;
+
+    Stream<T> get stream => sc.stream;
+
+    Observable<T> get observable => Observable(latestVal, stream);
+
+    @factory
+    static SCoLV<T> create<T>(T initVal) {
+        final sc = StreamController<T>.broadcast();
+        return SCoLV(sc, initVal);
+    }
+
+    @Mut(["this.sc", "this._latestVal"])
+    void set(T val) {
+        sc.add(val);
+        _latestVal = val;
     }
 }

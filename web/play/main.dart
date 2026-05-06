@@ -8,7 +8,7 @@ import 'dart:math';
 import 'package:async/async.dart' hide Result;
 import 'package:meta/meta.dart';
 import 'package:web/web.dart';
-import 'custom.dart';
+import './custom.dart';
 import './htmlhelp.dart';
 
 
@@ -300,7 +300,7 @@ class PlayerPos {
             pressed.remove(e.code);
             sc.add(ImmuSet(pressed));
         });
-        return sc.stream;
+        return sc.stream.asBroadcastStream();
     }
 
     static Observable<bool> _makeRunning(Stream<ImmuSet<String>> pressedStm) {
@@ -600,11 +600,8 @@ class ImmuSet<T> {
     bool contains(T value) => _wrset.contains(value);
 }
 
-class ImmuList<T> {
-    /// wrapped list
-    final List<T> _wrlist;
-    List<T> get values => _wrlist;
-    ImmuList(List<T> vals) : _wrlist = List.unmodifiable(vals);
+extension type ImmuList<T>._(List<T> values) implements Iterable<T> {
+    ImmuList(List<T> vals) : values = List.unmodifiable(vals); 
 }
 
 class LOBCol implements Drawable {
@@ -899,20 +896,11 @@ class MissionUI {
 }
 
 /// Previous name: attachElems()
-HTMLElement assembleElems(CanvM cmLife, CanvM cmLob, PlayerHUD phud, LOBCol lobc, MissionUI mui, Zoom zoom, Messages msgs, Pan pan) {
+HTMLElement assembleElems(CanvM cmLife, CanvM cmLob, {required List<HTMLElement> tabletChildren}) {
     final cmLobHudWrapped = HTML.div(id: "hudwrap", children: [cmLob.disp()]);
-    final cmLobAndAssociated = HTML.div(id: "cmlobparent", children: [
-        cmLobHudWrapped,
-        phud.disp(),
-        lobc.dispInfo(),
-        lobc.dispCtl(),
-        mui.disp(),
-        mui.dispResult(),
-        zoom.disp(),
-        msgs.dispenv(),
-        msgs.dispoverlay(),
-        pan.disp()
-    ]);
+    final cmLobAndAssociated = HTML.div(
+        id: "cmlobparent",
+        children: <HTMLElement>[cmLobHudWrapped] + tabletChildren);
     
     return HTML.div(children: [
     HTML.div(
@@ -1026,38 +1014,46 @@ Stream<MEv> makeMouseMoveStm(Stream<MouseEvent> mouseDown, Stream<MouseEvent> mo
 
 
 class Pan {
-    late final Observable<Pos> center;
-    final HTMLButtonElement _resetBtn = HTML.button()..innerText = "Re-center"..id = "recenter-btn"..className = "game-btn";
-    final StreamController<bool> _showReset = StreamController<bool>.broadcast();
+    final Observable<Pos> center;
+    final HTMLButtonElement _resetBtn;
 
-    Pan(Stream<MEv> mevStm, Observable<Pos> p1pob, Stream<Pos> p1stm, Observable<double> scale) {
-        final sc = StreamController<Pos>();
-        var current = p1pob.latestVal;
-        var hasPanned = false;
+    Pan(this.center, this._resetBtn);
 
-        p1stm.listen((p) { if (!hasPanned) { current = p; sc.add(current); } });
+    @factory
+    static Pan create(Stream<MEv> mevStm, Observable<Pos> p1pob, Stream<Pos> p1stm, Observable<double> scale) {
+        final pannedCenter = SCoLV.create(p1pob.latestVal);
+        final recenterBtn = HTML.button()..innerText = "Re-center"..id = "recenter-btn"..className = "game-btn hidden";
+        final followPlayer = SCoLV.create(true);
+
+        p1stm.listen((p) {
+            if (followPlayer.latestVal) {
+                pannedCenter.set(p);
+            }
+        });
 
         mevStm.where((mev) => mev.isDown).listen((mev) {
-            current += GridCC(scale.latestVal, current).gc(-mev.dx, mev.dy);
-            sc.add(current);
-            if (!hasPanned) { hasPanned = true; _showReset.add(true); }
+            final diff = GridCC(scale.latestVal, pannedCenter.latestVal).gc(-mev.dx, mev.dy);
+            pannedCenter.set(pannedCenter.latestVal + diff);
+            followPlayer.set(false);
         });
 
-        _resetBtn.onClick.listen((_) {
-            hasPanned = false;
-            current = p1pob.latestVal;
-            sc.add(current);
-            _showReset.add(false);
+        followPlayer.stream.listen((follow) {
+            if (follow) {
+                recenterBtn.classList.add("hidden");
+            } else {
+                recenterBtn.classList.remove("hidden");
+            }
         });
 
-        center = Observable(current, sc.stream);
+        recenterBtn.onClick.listen((_) {
+            pannedCenter.set(p1pob.latestVal);
+            followPlayer.set(true);
+        });
+
+        return Pan(pannedCenter.observable, recenterBtn);
     }
 
-    HTMLElement disp() {
-        final wrap = HTML.div();
-        _showReset.stream.listen((show) { wrap.replaceChildren(show ? _resetBtn : HTML.div()); });
-        return wrap;
-    }
+    HTMLElement disp() => _resetBtn;
 }
 
 class Messages {
@@ -1169,7 +1165,7 @@ void main() async {
     final keyup = document.body!.onKeyUp;
     final frameStm = makeFrameStm();
     final p1 = PlayerPos.create(Pos(GC(70012), GC(40008)), keydown, keyup, frameStm);
-    final ph = PlayerHUD(p1.posStm);
+    final phud = PlayerHUD(p1.posStm);
     final t1 = await SimpleOb.create("../assets/tx.png", Pos(GC(70008), GC(40012)), 30, Power(mW: 100));
     final sim = Sim.create(p1.posObs, t1.pos, t1.txpower!);
     final bushes = await Objs.create();
@@ -1181,11 +1177,21 @@ void main() async {
     final cmLob = CanvM("hud", canvWidth, canvHeight, zoom.scale, document.body!.onMouseUp);
     final lobc = LOBCol(keydown, sim.univLobs, cmLob.click, p1.posObs, zoom.scale);
     final mui = MissionUI(window.location.href, t1.pos);
-    final msg = Messages();
-    final pan = Pan(cmLob.mevStm, p1.posObs, p1.posStm, zoom.scale);
+    final msgs = Messages();
+    final pan = Pan.create(cmLob.mevStm, p1.posObs, p1.posStm, zoom.scale);
     cmLife.config(p1.posStm, [avatarlife, bushes, t1]);
     cmLob.config(p1.posStm, [lobc, grid, reticle], pan.center);
     document.getElementById("gameroot")!.replaceChildren(
-        assembleElems(cmLife, cmLob, ph, lobc, mui, zoom, msg, pan)
+        assembleElems(cmLife, cmLob, tabletChildren: [
+            phud.disp(),
+            lobc.dispInfo(),
+            lobc.dispCtl(),
+            mui.disp(),
+            mui.dispResult(),
+            zoom.disp(),
+            msgs.dispenv(),
+            msgs.dispoverlay(),
+            pan.disp(),
+        ])
     ); 
 }

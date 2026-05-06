@@ -1,13 +1,13 @@
 
-Next steps (overview) -- details for each below
+Next steps (overview) -- details for each below in same order
 
-1 week:
+1 week: recommend we publish version 2 when these are complete
 - Keyword 'late'
 - Selected lob
-- Compass
 - Mission instructions (success)
 
 1 month:
+- Compass
 - Tutorial 
 - Grid lines modification
 - Ground colors
@@ -19,34 +19,38 @@ Next steps (overview) -- details for each below
 - EM Physics
 - Art
 
-#################################################################################
-Mission instructions:
-    Success:
-    - Check for success when grid coordinates are entered.
-    - Right canvas would have the dotted line for the FLOT, Discuss
-    - Left canvas would have stick figures or whatever troops and equipment maybe
-    Other:
-    - possibly add a sound for incoming messages
-    - when you submit your grid coordinates it adds a sent message on this page
-    - make mission instructions look like an email interface? 
-    - Once we add the mission code, the mission stuff will be hidden in 'Explore' mode.
-
 #############################################################################
-Selected lob:
-
+#############################################################################
+##########                         1 week                          ##########
+#############################################################################
 #############################################################################
 Keyword 'late':
     - Rework CanvM and all other classes to have very few instance attributes and no late ones
 
 #############################################################################
-EM Physics:
-    - Reflections, refractions, elevation
-  
+Selected lob:
+    - currently cannot select a specific lob and we are seeing no information on that lob
+
+#############################################################################
+Mission instructions:
+    Success:
+    - Check for success when grid coordinates are entered.
+    - Right canvas would have the dotted line for the FLOT, Discuss
+    - Left canvas would have stick figures or whatever troops and equipment maybe
+
+#############################################################################
+#############################################################################
+##########                        1 month                          ##########
+#############################################################################
 #############################################################################
 Compass:
     - We need to discuss different execution possibilities.
     - G N with a vertical line?
     - magnetic north too? 
+
+#############################################################################
+Tutorial:
+    - Add a full tutorial to introduce UI, controls, and have them submit a grid coordinate (no constraints in the tutorial; they can walk right up to the transmitter)
 
 #############################################################################
 Grid lines modification:
@@ -57,13 +61,21 @@ Grid lines modification:
         choose between gridlines on 1km only versus gridlines that adjust based on zoom level (current behavior)
 
 #############################################################################
-Tutorial:
-    - Add a full tutorial to introduce UI, controls, and have them submit a grid coordinate (no constraints in the tutorial; they can walk right up to the transmitter)
-
-#############################################################################
 Ground colors:
     - Consider procedurally generated ground colors discuss whether on both or just left canvas
 
+#############################################################################
+Mission instructions:
+    Other:
+    - possibly add a sound for incoming messages
+    - when you submit your grid coordinates it adds a sent message on this page
+    - make mission instructions look like an email interface? 
+    - Once we add the mission code, the mission stuff will be hidden in 'Explore' mode.
+
+#############################################################################
+#############################################################################
+##########                        3 months                         ##########
+#############################################################################
 #############################################################################
 Transmitter:
     - Possibly add a transmitter animation that shows waves or no waves based on whether we are transmitting or not. (possible next stage for missions)
@@ -72,6 +84,10 @@ Transmitter:
 Credits:
     - Make credits page scroll and repeat like tv credits.
     
+#############################################################################
+EM Physics:
+    - Reflections, refractions, elevation
+
 #############################################################################
 Art:
     - Source: One of...
