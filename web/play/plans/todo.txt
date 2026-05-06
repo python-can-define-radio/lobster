@@ -2,18 +2,16 @@
 Next steps (overview) -- details for each below
 
 1 week:
-- Finish reworking Avatar class
-- Rework CanvM to have very few instance attributes and no late ones
-- Check all other classes for "late" variables
+- Keyword 'late'
 - Selected lob
 - Compass
+- Mission instructions (success)
 
 1 month:
 - Tutorial 
 - Grid lines modification
 - Ground colors
-- Mission instructions
-
+- Mission instructions (other)
 
 3 months:
 - Transmitter
@@ -23,16 +21,22 @@ Next steps (overview) -- details for each below
 
 #################################################################################
 Mission instructions:
+    Success:
+    - Check for success when grid coordinates are entered.
+    - Right canvas would have the dotted line for the FLOT, Discuss
+    - Left canvas would have stick figures or whatever troops and equipment maybe
+    Other:
     - possibly add a sound for incoming messages
     - when you submit your grid coordinates it adds a sent message on this page
     - make mission instructions look like an email interface? 
     - Once we add the mission code, the mission stuff will be hidden in 'Explore' mode.
-    - Check for success when grid coordinates are entered.
-    - Right canvas would have the dotted line for the FLOT, Discuss
-    - Left canvas would have stick figures or whatever troops and equipment maybe
 
 #############################################################################
 Selected lob:
+
+#############################################################################
+Keyword 'late':
+    - Rework CanvM and all other classes to have very few instance attributes and no late ones
 
 #############################################################################
 EM Physics:
