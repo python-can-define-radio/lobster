@@ -27,6 +27,8 @@ Mission instructions:
     Success:
     - Check real coords of tx. Right now it's arbtirary 12345 stuff
     - Right canvas would have the dotted line for the FLOT, Discuss
+    - Some sort of completion marking, possibly on mission selection window
+      - would need localStorage for persistence
 
 #############################################################################
 #############################################################################
