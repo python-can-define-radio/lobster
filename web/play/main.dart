@@ -104,6 +104,13 @@ class GridCC {
         ctx.drawImage(img, xcu - wcu/2, ycu - hcu/2, wcu, hcu);
     }
 
+    /// Not yet fully implemented -- has some hardcoded numbers.
+    @Mut(["ctx"])
+    void drawSlice(Pos p, HTMLImageElement img, Cctx ctx) {
+        final (:xcu, :ycu) = cush(p);
+        ctx.drawImage(img, 17, 0, 14, 14, xcu, ycu, 32, 32);
+    }
+
     /// Line from `pos1` to `pos2`
     @Mut(["ctx"])
     void drawLine(Pos pos1, Pos pos2, Cctx ctx) {
@@ -778,8 +785,10 @@ class MissionUI {
         };
         
     static Result<Pos, String> parseSubmission(String submission) {
-        final errLen = "Grid coordinates must be entered as 4, 6, 8, or 10 digit grid, according to the mission requirements.";
-        final errGeneric = "You must enter two positive numbers separated by one space.\nExample: 12345 45678";
+        // final errLen = "Grid coordinates must be entered as 4, 6, 8, or 10 digit grid, according to the mission requirements.\nExample 10 digit grid: 12345 45678";
+        final errGeneric = "You must enter two positive numbers separated by one space.\n"
+            "Example 10 digit grid: 12345 45678\n"
+            "Example 8 digit grid: 1234 8765\n";
         
         /// If `val` is a list of exactly two positive integers, return them wrapped in `Success`.
         /// Else, return a Failure.
@@ -800,17 +809,17 @@ class MissionUI {
         return submission
             .trim()
             .then((x) => x.split(" "))
-            .then((x) => succIf(x, allSameLen(x), errLen))
+            .then((x) => succIf(x, allSameLen(x), errGeneric))
             .map((x) => x.map(int.tryParse).toList())
             .map((x) => twoPsvInts(x))
             .then((x) => flatten(x));
     }
 
-    static Result<String, String> checkCoords(Pos pos) =>
-        pos == Pos(GC(12345), GC(45678))
+    Result<String, String> checkCoords(Pos pos) =>
+        pos == txpos
         ? Success("Correct!")
         : Failure("Those grid coordinates were incorrect. Try again.");
-    
+
     @Eff("window.open")
     void _showAllowGoHome(String msg) {
         _dialog.showWith(msg).then((response) {
@@ -1029,9 +1038,10 @@ class Messages {
             ..appendChild(HTML.p()
                 ..id = "m1-message"
                 ..innerText = """The adversary's scouts are watching in force.
-                  To avoid capture, stay behind the FLOT.
-                  -- don't go any further North than grid 40100 northing.
-                  Once you have determined the transmitter's grid location to within 3 meters, send it to me using your tablet's grid coordinate submission form.""")
+
+                To avoid capture, stay behind the FLOT -- don't go any further North than grid 40100 northing.
+                
+                Once you have determined the transmitter's grid location, send it to me using your tablet's submission form using either an 8 digit grid coordinate (within 10 meters) or a 10 digit grid coordinate (within 1 meter).""")
             ..appendChild(HTML.button()
                 ..className = "game-btn"
                 ..id = "backbtn"
@@ -1056,24 +1066,30 @@ class Objs implements Drawable {
     final ImmuList<SimpleOb> _objs;
 
     Objs(this._objs);
-
-    /// Create randomly-distributed bushes
+    
     @Eff("http-req")
     @factory
-    static Future<Objs> create() async {
-        final topleft = Pos(GC(69900), GC(39900));
+    static Future<Objs> create(Pos playerInitPos) async {
+        return Objs(await createBushes(playerInitPos));
+    }
+
+    /// randomly-distributed
+    @Eff("http-req")
+    static Future<ImmuList<SimpleOb>> createBushes(Pos distribCenter) async {
         final random = Random();
         final bush1 = await imageload("../assets/bush_1.png");
         final bush2 = await imageload("../assets/bush_2.png");
 
         SimpleOb makebush() {
+            /// random number between -100 and 100
+            double rn() => (random.nextDouble() - 0.5) * 200;
             final height = random.nextInt(6) * 5 + 20;
             final img = random.nextBool() ? bush1 : bush2;
-            final posShift = Pos(GC(random.nextDouble() * 200), GC(random.nextDouble() * 200));
-            return SimpleOb.fromImg(img, topleft + posShift, height);
+            final posShift = Pos(GC(rn()), GC(rn()));
+            return SimpleOb.fromImg(img, distribCenter + posShift, height);
         }
 
-        return Objs(ImmuList([for (var i = 0; i < 2000; i++) makebush()]));
+        return ImmuList([for (var i = 0; i < 2000; i++) makebush()]);
     }
 
     @override
@@ -1086,18 +1102,47 @@ class Objs implements Drawable {
 }
 
 
+class Ground implements Drawable {
+    Pos coloringCenter;
+    HTMLImageElement img;
+
+    Ground(this.coloringCenter, this.img);
+
+    @Eff("http-req")
+    @factory
+    static Future<Ground> create(Pos coloringCenter) async {
+        final img = await imageload("../assets/groundtiles.png");
+        return Ground(coloringCenter, img);
+    }
+
+    @override
+    void draw(Cctx ctx, GridCC gridcc) {
+        // for (var x = -50.0; x < -2.0; x += 1.4) {
+        //     for (var y = -70.0; y < 2.0; y += 1.4) {
+        //         gridcc.drawSlice(coloringCenter + Pos(GC(x), GC(y)), img, ctx);
+        //     }
+        // }
+        ctx.fillStyle = "#777".toJS;
+        gridcc.fillRectCent(coloringCenter + Pos(GC(3), GC(5)), 100, 2000, ctx);
+        gridcc.fillRectCent(coloringCenter + Pos(GC(10), GC(5)), 2000, 100, ctx);
+    }
+}
+
+
+
 @Eff("*")
 void main() async {
     final keydown = document.body!.onKeyDown;
     final keyup = document.body!.onKeyUp;
     final frameStm = makeFrameStm();
-    final p1 = PlayerPos.create(Pos(GC(70012), GC(40008)), keydown, keyup, frameStm);
+    final p1 = PlayerPos.create(Pos(GC(70012), GC(40085)), keydown, keyup, frameStm);
     final phud = PlayerHUD(p1.posStm);
-    final t1 = await SimpleOb.create("../assets/tx.png", Pos(GC(70008), GC(40012)), 30, Power(mW: 100));
+    final t1 = await SimpleOb.create("../assets/tx.png", Pos(GC(70008), GC(40145)), 30, Power(mW: 100));
     final sim = Sim.create(p1.posObs, t1.pos, t1.txpower!);
-    final bushes = await Objs.create();
+    final bushes = await Objs.create(p1.posObs.latestVal);
     final avatarlife = await Avatar.create(p1.dirxyStm, p1.runningObs);
     final reticle = Reticle(p1.posObs);
+    final ground = await Ground.create(p1.posObs.latestVal);
     final zoom = Zoom.create();
     final grid = Grid(zoom.scaleObs);
     final cmLife = CanvM.create("life", canvWidth, canvHeight, document.body!.onMouseUp);
@@ -1106,7 +1151,7 @@ void main() async {
     final mui = MissionUI(window.location.href, t1.pos);
     final msgs = Messages();
     final pan = Pan.create(cmLob.mevStm, p1.posObs, p1.posStm, zoom.scaleObs);
-    cmLife.config(p1.posStm, [avatarlife, bushes, t1]);
+    cmLife.config(p1.posStm, [ground, avatarlife, bushes, t1]);
     cmLob.config(p1.posStm, [lobc, grid, reticle], zoom.scaleObs, pan.center);
     document.getElementById("gameroot")!.replaceChildren(
         assembleElems(cmLife, cmLob, tabletChildren: [

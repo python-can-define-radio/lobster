@@ -16,6 +16,7 @@ Next steps (overview) -- details for each below in same order
 - Transmitter
 - Credits
 - EM Physics
+- Realistic Location
 - Art
 
 #############################################################################
@@ -25,10 +26,19 @@ Next steps (overview) -- details for each below in same order
 #############################################################################
 Mission instructions:
     Success:
-    - Check real coords of tx. Right now it's arbtirary 12345 stuff
-    - Right canvas would have the dotted line for the FLOT, Discuss
+    - Right canvas: button/checkbox to turn on/off merged view (add a FAQ to explain)
+        - possible icon <i class="fa-regular fa-object-group"></i>
+        - try this one also <i class="fa-regular fa-object-ungroup"></i>
+        - note: since canv size may change, we need to stop using global canvWidth and canvHeight and instead have instance vars attached to CanvM
+    - Left canvs should be something more realistic.
+    - need popup saying "You've been captured!" if you cross the FLOT.
+      Button: restart mission.
     - Some sort of completion marking, possibly on mission selection window
-      - would need localStorage for persistence
+        - <i class="fa-regular fa-square-check"></i> a checkmark
+        - would need localStorage for persistence
+        - if we record completion time, we'll need to add that, and we would 
+            want to consider randomizing transmitter position (perhaps fixed 
+            northing and variable eastin)
 
 #############################################################################
 #############################################################################
@@ -67,6 +77,7 @@ Mission instructions:
     - when you submit your grid coordinates it adds a sent message on this page
     - make mission instructions look like an email interface? 
     - Once we add the mission code, the mission stuff will be hidden in 'Explore' mode.
+    - messages should be changed depending on which mission is chosen
 
 #############################################################################
 #############################################################################
@@ -84,6 +95,11 @@ Credits:
 EM Physics:
     - Reflections, refractions, elevation
 
+
+#############################################################################
+Realistic Location:
+- consider picking a flat location in real world and use those coords?
+
 #############################################################################
 Art:
     - Source: One of...
@@ -100,3 +116,13 @@ Art:
         - Multiple avatar choices
         - tree
         - building
+
+
+
+
+
+
+https://opengameart.org/content/ground
+https://opengameart.org/content/45-high-res-ground-texture-photos
+https://opengameart.org/content/ground-tiles-1
+https://opengameart.org/content/ground-sprite-pack
