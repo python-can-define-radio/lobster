@@ -1,8 +1,12 @@
 
 Next steps (overview) -- details for each below in same order
 
-1 week: recommend we publish version 2 when these are complete
+1 week
+- Merged view
 - Mission instructions (success)
+- Play button
+
+----- Publish version 2 -----
 
 1 month:
 - Selected lob
@@ -11,6 +15,7 @@ Next steps (overview) -- details for each below in same order
 - Grid lines modification
 - Ground colors
 - Mission instructions (other)
+- Merged view
 
 3 months:
 - Transmitter
@@ -24,13 +29,20 @@ Next steps (overview) -- details for each below in same order
 ##########                         1 week                          ##########
 #############################################################################
 #############################################################################
+Merged view:
+    - Right canvas: button/checkbox to turn on/off merged view
+        - need to fix right canv unmerge draw stuff
+    - add a FAQ to explain
+        Q: What is this game?
+        <p>A: Radio Direction Finding (DFing) is the process of locating a radio transmitter. This can be done by simply measuring the received power and observing where it is stronger or weaker, but it is often more effective to determine the Angle of Arrival (AoA), or azimuth angle. This technique is used by hobbyists, cell phone companies, law enforcement, and military.</p>
+        <p>Using a military context, this game provides the opportunity to experience some of the challenges of DFing without equipment.</p>
+
+        Q: What are the left and right views?
+        A: The right view simulates what you may see on a tablet running DFing software. The left view simulates "real life". You have the option of merging the two views to save space on your screen using this button on the simulated tablet: <i class="fa-object-group"></i>.
+
+#############################################################################
 Mission instructions:
     Success:
-    - Right canvas: button/checkbox to turn on/off merged view (add a FAQ to explain)
-        - possible icon <i class="fa-regular fa-object-group"></i>
-        - try this one also <i class="fa-regular fa-object-ungroup"></i>
-        - note: since canv size may change, we need to stop using global canvWidth and canvHeight and instead have instance vars attached to CanvM
-    - Left canvs should be something more realistic.
     - need popup saying "You've been captured!" if you cross the FLOT.
       Button: restart mission.
     - Some sort of completion marking, possibly on mission selection window
@@ -39,6 +51,12 @@ Mission instructions:
         - if we record completion time, we'll need to add that, and we would 
             want to consider randomizing transmitter position (perhaps fixed 
             northing and variable eastin)
+
+#############################################################################
+Play button:
+    - change the checkbox for gathering lobs to a "play" button which switches to a stop button
+        - <i class="fa-solid fa-play"></i>
+        - <i class="fa-solid fa-stop"></i>
 
 #############################################################################
 #############################################################################
@@ -78,6 +96,12 @@ Mission instructions:
     - make mission instructions look like an email interface? 
     - Once we add the mission code, the mission stuff will be hidden in 'Explore' mode.
     - messages should be changed depending on which mission is chosen
+
+#############################################################################
+Merged view:
+    - handle canv size change when merged. 
+        - we need to stop using global canvWidth and canvHeight and instead have instance vars attached to CanvM
+    - Left canvs should be something more realistic.
 
 #############################################################################
 #############################################################################

@@ -104,11 +104,11 @@ class GridCC {
         ctx.drawImage(img, xcu - wcu/2, ycu - hcu/2, wcu, hcu);
     }
 
-    /// Not yet fully implemented -- has some hardcoded numbers.
     @Mut(["ctx"])
-    void drawSlice(Pos p, HTMLImageElement img, Cctx ctx) {
+    void drawSlice(Pos p, HTMLImageElement img, int column, int row, num fw, num fh, num size, Cctx ctx) {
         final (:xcu, :ycu) = cush(p);
-        ctx.drawImage(img, 17, 0, 14, 14, xcu, ycu, 32, 32);
+        // ctx.drawImage(img, 17, 0, 14, 14, xcu, ycu, 32, 32);
+        ctx.drawImage(img, column * fw, row * fh, fw, fh, xcu - size/2, ycu - size/2, size, size);
     }
 
     /// Line from `pos1` to `pos2`
@@ -323,12 +323,13 @@ class Avatar implements Drawable {
     final int _horizFrames = 4;
     final int _vertFrames = 4;
     final Observable<int> _cycle;
+    final Observable<Pos> _p1posObs;
 
-    Avatar(this._avatarSheet, this._dirxyObs, this._cycle);
+    Avatar(this._avatarSheet, this._dirxyObs, this._cycle, this._p1posObs);
 
     @Eff("http-req")
     @factory
-    static Future<Avatar> create(Stream<DirXY> dirxyStm,  Observable<bool> runningObs) async {
+    static Future<Avatar> create(Stream<DirXY> dirxyStm, Observable<bool> runningObs, Observable<Pos> p1posObs) async {
         final img = await imageload("../assets/avatar_sheet2.png");
         /// Keep only non-zero directions when determining facing
         /// so that the avatar persists facing the most recent direction
@@ -336,7 +337,7 @@ class Avatar implements Drawable {
         final nonz = dirxyStm.where((dirxy) => !dirxy.isZero);
         final dirxyObs = Observable(DirXY(0, -1), nonz);
         final cycle = Observable(0, makeAnimCycler(dirxyStm, runningObs));
-        return Avatar(img, dirxyObs, cycle);
+        return Avatar(img, dirxyObs, cycle, p1posObs);
     }
 
     /// Given DirXY, compute the row that corresponds to the facing direction
@@ -368,20 +369,20 @@ class Avatar implements Drawable {
 
     /// row = y index; column = x index
     @Mut(["ctx"])
-    void _drawSlice(Cctx ctx, int row, int column, num xpos, num ypos, num size) {
+    void _drawSlice(Cctx ctx, int row, int column, num size, GridCC gridcc) {
         final fw = _avatarSheet.width / _horizFrames;
         final fh = _avatarSheet.height / _vertFrames;
-        ctx.drawImage(_avatarSheet, column * fw, row * fh, fw, fh, xpos, ypos, size, size);
+        gridcc.drawSlice(_p1posObs.latestVal, _avatarSheet, column, row, fw, fh, size, ctx);
     }
 
     @override
     @Mut(["ctx"])
     void draw(Cctx ctx, GridCC gridcc) {
         const size = 50;
-        final x = canvWidth / 2 - size / 2;
-        final y = canvHeight / 2 - size / 2;
+        // final x = canvWidth / 2 - size / 2;
+        // final y = canvHeight / 2 - size / 2;
         final row = _dxyToSlice(_dirxyObs.latestVal);
-        _drawSlice(ctx, row, _cycle.latestVal, x, y, size);
+        _drawSlice(ctx, row, _cycle.latestVal, size, gridcc);
     }
 }
 
@@ -411,47 +412,93 @@ class Reticle implements Drawable {
 }
 
 
-class CanvM {
+class CanvMLeft {
     final HTMLCanvasElement _canv;
-    final Stream<MouseEvent> click;
-    final Stream<MEv> mevStm;
-    final int w;
-    final int h;
+    final int _w;
+    final int _h;
 
-    CanvM(this._canv, this.click, this.mevStm, this.w, this.h);
+    CanvMLeft(this._canv, this._w, this._h);
 
     @factory
-    static CanvM create(String cssid, int w, int h, Stream<MouseEvent> docMouseUp) {
-        final canv = HTML.canvas()
-            ..width = w
-            ..height = h
-            ..id = cssid;
-        /// as per AI recommendation, the mouseUp should be from the doc in case the cursor leaves the canvas
-        final mevStm = makeMouseMoveStm(canv.onMouseDown, canv.onMouseMove, docMouseUp);
-        return CanvM(canv, canv.onClick, mevStm, w, h);
+    static CanvMLeft create(int w, int h) {
+        final canv = HTML.canvas("life", w, h);
+        return CanvMLeft(canv, w, h);
     }
 
-    /// Basically 'constructor part two'. Had to separate to avoid
-    /// a circular dependency.
-    void config(Stream<Pos> p1PosStm, Iterable<Drawable> drawItems, [Observable<double>? scaleObsNully, Observable<Pos>? panCenter]) {
+    /// Start drawing on p1PosStm events
+    @Mut(["this._canv"])
+    void start(Stream<Pos> p1PosStm, Observable<ImmuList<Drawable>> drawItemsObs, Stream<bool> isMergedStm) {
         final ctx = _canv.getContext('2d') as Cctx;
         p1PosStm.listen((p1pos) {
-            final scaleObsLV = scaleObsNully?.latestVal ?? 1;
-            _frameUpdate(p1pos, panCenter?.latestVal, ctx, w, h, scaleObsLV, drawItems);
+            _frameUpdate(p1pos, ctx, _w, _h, drawItemsObs.latestVal);
+        });
+        isMergedStm.listen((isMerged) {
+            if (isMerged) {
+                _canv.classList.add("hidden");
+            } else {
+                _canv.classList.remove("hidden");
+            }
         });
     }
-    
+
     HTMLCanvasElement disp() => _canv;
 
     @Mut(["ctx"])
-    static void _frameUpdate(Pos p1pos, Pos? panCenter, Cctx ctx, int w, int h, double scale, Iterable<Drawable> drawItems) {
-        final gridcc = GridCC(scale, panCenter ?? p1pos);
+    static void _frameUpdate(Pos p1pos, Cctx ctx, int w, int h,Iterable<Drawable> drawItems) {
+        const scaleLeft = 1.0; /// Left canvas doesn't allow zooming
+        final gridcc = GridCC(scaleLeft, p1pos);
         ctx.clearRect(0, 0, w, h);
         for (final item in drawItems) {
             item.draw(ctx, gridcc);
         }
     }
 }
+
+class CanvMRight {
+    final HTMLCanvasElement _canv;
+    final Stream<MouseEvent> click;
+    final Stream<MEv> mevStm;
+    final int w;
+    final int h;
+
+    CanvMRight(this._canv, this.click, this.mevStm, this.w, this.h);
+    
+    @factory
+    static CanvMRight create(int w, int h, Stream<MouseEvent> docMouseUp) {
+        final canv = HTML.canvas("hud", w, h);
+        /// as per AI recommendation, the mouseUp should be from the doc
+        /// in case the cursor leaves the canvas while mouse is down
+        final mevStm = makeMouseMoveStm(canv.onMouseDown, canv.onMouseMove, docMouseUp);
+        return CanvMRight(canv, canv.onClick, mevStm, w, h);
+    }
+
+    /// Start drawing on p1PosStm events
+    void start(Stream<Pos> p1PosStm, Observable<ImmuList<Drawable>> drawItemsObs, Stream<bool> isMergedStm, Observable<double> scaleObs, Observable<Pos> panCenter) {
+        final ctx = _canv.getContext('2d') as Cctx;
+        p1PosStm.listen((p1pos) {
+            _frameUpdate(p1pos, panCenter.latestVal, ctx, w, h, scaleObs.latestVal, drawItemsObs.latestVal);
+        });
+        isMergedStm.listen((isMerged) {
+            if (isMerged) {
+                print("Would set canv width and height larger here");
+            } else {
+                print("opposite");
+            }
+        });
+    }
+
+    HTMLCanvasElement disp() => _canv;
+
+    @Mut(["ctx"])
+    static void _frameUpdate(Pos p1pos, Pos panCenter, Cctx ctx, int w, int h, double scale, Iterable<Drawable> drawItems) {
+        final gridcc = GridCC(scale, panCenter);
+        ctx.clearRect(0, 0, w, h);
+        for (final item in drawItems) {
+            item.draw(ctx, gridcc);
+        }
+    }
+}
+
 
 class Grid implements Drawable {
     final Observable<double> _scaleObs;
@@ -865,8 +912,8 @@ class MissionUI {
     HTMLElement dispResult() => _dialog.disp();
 }
 
-/// Previous name: attachElems()
-HTMLElement assembleElems(CanvM cmLife, CanvM cmLob, {required Iterable<HTMLElement> tabletChildren}) {
+
+HTMLElement assembleElems(CanvMLeft cmLife, CanvMRight cmLob, {required Iterable<HTMLElement> tabletChildren}) {
     final cmLobHudWrapped = <HTMLElement>[HTML.div(
         id: "hudwrap",
         children: [cmLob.disp()]
@@ -993,12 +1040,12 @@ class Pan {
 }
 
 class Messages {
-    final _incmsg = StreamController<bool>();
-    final _shown = StreamController<bool>(); 
+    final _incmsgSC = StreamController<bool>();
+    final _shownSC = StreamController<bool>(); 
 
     Messages() {
-        _incmsg.add(true);
-        _shown.add(false);
+        _incmsgSC.add(true);
+        _shownSC.add(false);
     }
     
     HTMLElement dispenv() {
@@ -1009,8 +1056,8 @@ class Messages {
             ..className = "game-btn msgs-position"
             ..appendChild(messagetext);
 
-        _incmsg.stream.listen((x) {
-            if (x) {
+        _incmsgSC.stream.listen((incmsg) {
+            if (incmsg) {
                 messagetext.classList.add("fa-envelope");
                 messagetext.classList.remove("fa-envelope-open");
                 msgbutton.classList.add("msgs-unread");
@@ -1022,7 +1069,10 @@ class Messages {
             }
         });
 
-        msgbutton.onClick.listen((_) {_shown.add(true); _incmsg.add(false);});
+        msgbutton.onClick.listen((_) {
+            _shownSC.add(true);
+            _incmsgSC.add(false);
+        });
         return msgbutton;
     }
     
@@ -1046,10 +1096,10 @@ class Messages {
                 ..className = "game-btn"
                 ..id = "backbtn"
                 ..appendChild(buttontext)
-                ..onClick.listen((_) => _shown.add(false))
+                ..onClick.listen((_) => _shownSC.add(false))
             );
-        _shown.stream.listen((x) {
-            if (x) {
+        _shownSC.stream.listen((shown) {
+            if (shown) {
                 overlay.classList.remove("hidden");
             }
             else {
@@ -1129,6 +1179,55 @@ class Ground implements Drawable {
 }
 
 
+/// Provides `Drawable`s to the left and right canvas according to 
+/// whether they are merged or unmerged.
+class LeftRightM {
+    Observable<ImmuList<Drawable>> leftObs;
+    Observable<ImmuList<Drawable>> rightObs;
+    Stream<bool> isMergedStm;
+    final ImmuElem _disp;
+    
+    LeftRightM(this.leftObs, this.rightObs, this._disp, this.isMergedStm);
+
+    /// `rightInitConditional` is shown when the two are separate, and is omitted when the two are merged.
+    static LeftRightM create(Iterable<Drawable> leftInit, Iterable<Drawable> rightInitAlways, Iterable<Drawable> rightInitConditional) {
+        final lef = ImmuList(leftInit);
+        final rig = ImmuList(rightInitAlways.followedBy(rightInitConditional));
+        final scleft = StreamController<ImmuList<Drawable>>()..add(lef);
+        final scright = StreamController<ImmuList<Drawable>>()..add(rig);
+        final scIsMerged = SCoLV.create(false);
+        final combicon = HTML.p()
+            ..className = "fa-regular fa-object-group fa-2x msgs-text";
+        final combbtn = HTML.button()
+            ..className = "game-btn comb-position"
+            ..appendChild(combicon);
+        combbtn.onClick.listen((_) {
+            scIsMerged.set(!scIsMerged.latestVal);
+        });
+
+        scIsMerged.stream.listen((isMerged) {
+            if (isMerged) {
+                combicon.classList.add("fa-object-group");
+                combicon.classList.remove("fa-object-ungroup");
+                scright.add(ImmuList(lef.followedBy(rightInitAlways)));
+            }
+            else {
+                combicon.classList.add("fa-object-ungroup");
+                combicon.classList.remove("fa-object-group");
+            }
+        });
+        
+        return LeftRightM(
+            Observable(lef, scleft.stream),
+            Observable(rig, scright.stream),
+            ImmuElem(combbtn),
+            scIsMerged.stream,
+        );
+    }
+
+    HTMLElement disp() => _disp.e;
+}
+
 
 @Eff("*")
 void main() async {
@@ -1140,19 +1239,20 @@ void main() async {
     final t1 = await SimpleOb.create("../assets/tx.png", Pos(GC(70008), GC(40145)), 30, Power(mW: 100));
     final sim = Sim.create(p1.posObs, t1.pos, t1.txpower!);
     final bushes = await Objs.create(p1.posObs.latestVal);
-    final avatarlife = await Avatar.create(p1.dirxyStm, p1.runningObs);
+    final avatarlife = await Avatar.create(p1.dirxyStm, p1.runningObs, p1.posObs);
     final reticle = Reticle(p1.posObs);
     final ground = await Ground.create(p1.posObs.latestVal);
     final zoom = Zoom.create();
     final grid = Grid(zoom.scaleObs);
-    final cmLife = CanvM.create("life", canvWidth, canvHeight, document.body!.onMouseUp);
-    final cmLob = CanvM.create("hud", canvWidth, canvHeight, document.body!.onMouseUp);
+    final cmLife = CanvMLeft.create(canvWidth, canvHeight);
+    final cmLob = CanvMRight.create(canvWidth, canvHeight, document.body!.onMouseUp);
     final lobc = LOBCol.create(keydown, sim.univLobs, cmLob.click, p1.posObs, zoom.scaleObs);
     final mui = MissionUI(window.location.href, t1.pos);
     final msgs = Messages();
+    final lrm = LeftRightM.create([ground, avatarlife, bushes, t1], [lobc, grid], [reticle]); 
     final pan = Pan.create(cmLob.mevStm, p1.posObs, p1.posStm, zoom.scaleObs);
-    cmLife.config(p1.posStm, [ground, avatarlife, bushes, t1]);
-    cmLob.config(p1.posStm, [lobc, grid, reticle], zoom.scaleObs, pan.center);
+    cmLife.start(p1.posStm, lrm.leftObs, lrm.isMergedStm);
+    cmLob.start(p1.posStm, lrm.rightObs, lrm.isMergedStm, zoom.scaleObs, pan.center);
     document.getElementById("gameroot")!.replaceChildren(
         assembleElems(cmLife, cmLob, tabletChildren: [
             phud.disp(),
@@ -1164,6 +1264,7 @@ void main() async {
             msgs.dispenv(),
             msgs.dispoverlay(),
             pan.disp(),
+            lrm.disp(),
         ])
     ); 
 }

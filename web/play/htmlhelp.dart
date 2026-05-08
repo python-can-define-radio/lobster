@@ -14,8 +14,6 @@ typedef DuStm = Stream<Duration>;
 class HTML {
     static HTMLButtonElement button() =>
             document.createElement('button') as HTMLButtonElement;
-    static HTMLCanvasElement canvas() =>
-            document.createElement('canvas') as HTMLCanvasElement;
     static HTMLDialogElement dialog() =>
             document.createElement('dialog') as HTMLDialogElement;
     static HTMLFormElement form() =>
@@ -26,12 +24,18 @@ class HTML {
             document.createElement('p') as HTMLParagraphElement;    
     static HTMLSpanElement span() =>
             document.createElement('span') as HTMLSpanElement;
+    static HTMLCanvasElement canvas(String id, int w, int h) {
+        return (document.createElement('canvas') as HTMLCanvasElement)
+                ..id = id
+                ..width = w
+                ..height = h;
+    }
     static HTMLInputElement checkbox() {
         final el = document.createElement('input') as HTMLInputElement;
         el.setAttribute("type", "checkbox");
         return el;
     }
-    static HTMLDivElement div({String? id, String? className, Iterable<HTMLElement>? children}) {
+    static HTMLDivElement div({String? id, String? className, Iterable<HTMLElement>? children, Iterable<ImmuElem>? ichildren}) {
         final e = document.createElement('div') as HTMLDivElement;
         if (id != null) {
             e.id = id;
@@ -42,6 +46,11 @@ class HTML {
         if (children != null) {
             for (final c in children) {
                 e.appendChild(c);
+            }
+        }
+        if (ichildren != null) {
+            for (final ic in ichildren) {
+                e.appendChild(ic.e);
             }
         }
         return e;
@@ -67,6 +76,9 @@ extension Flickerable on HTMLElement {
         });
     }
 }
+
+extension type ImmuElem(HTMLElement e) {}
+
 
 /// Repeatedly call requestAnimationFrame; pass the time delta as an argument to `frameUpdate`
 @Eff("window.requestAnimationFrame")
