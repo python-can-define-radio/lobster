@@ -140,6 +140,6 @@ class ImmuSet<T> {
 extension type ImmuList<T>._(List<T> values) implements Iterable<T> {
     ImmuList(Iterable<T> vals) : values = List.unmodifiable(vals); 
     /// Same as `append`, but returns a new list.
-    ImmuList<T> add(T other) =>
-        ImmuList(values + [other]); 
+    ImmuList<T> followedBy(Iterable<T> other) =>
+        ImmuList(values.followedBy(other)); 
 }

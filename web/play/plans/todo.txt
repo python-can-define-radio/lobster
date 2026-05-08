@@ -4,7 +4,6 @@ Next steps (overview) -- details for each below in same order
 1 week
 - Merged view
 - Mission instructions (success)
-- Play button
 
 ----- Publish version 2 -----
 
@@ -13,7 +12,7 @@ Next steps (overview) -- details for each below in same order
 - Compass
 - Tutorial 
 - Grid lines modification
-- Ground colors
+- Ground objects
 - Mission instructions (other)
 - Merged view
 
@@ -32,13 +31,6 @@ Next steps (overview) -- details for each below in same order
 Merged view:
     - Right canvas: button/checkbox to turn on/off merged view
         - need to fix right canv unmerge draw stuff
-    - add a FAQ to explain
-        Q: What is this game?
-        <p>A: Radio Direction Finding (DFing) is the process of locating a radio transmitter. This can be done by simply measuring the received power and observing where it is stronger or weaker, but it is often more effective to determine the Angle of Arrival (AoA), or azimuth angle. This technique is used by hobbyists, cell phone companies, law enforcement, and military.</p>
-        <p>Using a military context, this game provides the opportunity to experience some of the challenges of DFing without equipment.</p>
-
-        Q: What are the left and right views?
-        A: The right view simulates what you may see on a tablet running DFing software. The left view simulates "real life". You have the option of merging the two views to save space on your screen using this button on the simulated tablet: <i class="fa-object-group"></i>.
 
 #############################################################################
 Mission instructions:
@@ -51,12 +43,6 @@ Mission instructions:
         - if we record completion time, we'll need to add that, and we would 
             want to consider randomizing transmitter position (perhaps fixed 
             northing and variable eastin)
-
-#############################################################################
-Play button:
-    - change the checkbox for gathering lobs to a "play" button which switches to a stop button
-        - <i class="fa-solid fa-play"></i>
-        - <i class="fa-solid fa-stop"></i>
 
 #############################################################################
 #############################################################################
@@ -85,8 +71,9 @@ Grid lines modification:
         choose between gridlines on 1km only versus gridlines that adjust based on zoom level (current behavior)
 
 #############################################################################
-Ground colors:
+Ground objects:
     - Consider procedurally generated ground colors discuss whether on both or just left canvas
+    - bushes should not be drawn on the roads
 
 #############################################################################
 Mission instructions:
@@ -140,10 +127,6 @@ Art:
         - Multiple avatar choices
         - tree
         - building
-
-
-
-
 
 
 https://opengameart.org/content/ground

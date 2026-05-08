@@ -8,8 +8,8 @@ import 'dart:math';
 import 'package:async/async.dart' hide Result;
 import 'package:meta/meta.dart';
 import 'package:web/web.dart';
-import './custom.dart';
-import './htmlhelp.dart';
+import '../dartlib/custom.dart';
+import '../dartlib/htmlhelp.dart';
 
 
 const canvWidth = 600;
@@ -101,14 +101,17 @@ class GridCC {
     @Mut(["ctx"])
     void drawImage(Pos p, HTMLImageElement img, num wcu, num hcu, Cctx ctx) {
         final (:xcu, :ycu) = cush(p);
-        ctx.drawImage(img, xcu - wcu/2, ycu - hcu/2, wcu, hcu);
+        ctx.drawImage(img, xcu - wcu*scale/2, ycu - hcu*scale/2, wcu * scale, hcu * scale);
     }
 
     @Mut(["ctx"])
     void drawSlice(Pos p, HTMLImageElement img, int column, int row, num fw, num fh, num size, Cctx ctx) {
         final (:xcu, :ycu) = cush(p);
-        // ctx.drawImage(img, 17, 0, 14, 14, xcu, ycu, 32, 32);
-        ctx.drawImage(img, column * fw, row * fh, fw, fh, xcu - size/2, ycu - size/2, size, size);
+        /// scaled size
+        final scsi = max(size * scale, size * 0.6);
+        ctx.drawImage(img,
+                column * fw, row * fh, fw, fh,
+                xcu - scsi/2, ycu - scsi/2, scsi, scsi);
     }
 
     /// Line from `pos1` to `pos2`
@@ -487,7 +490,7 @@ class CanvMRight {
         });
     }
 
-    HTMLCanvasElement disp() => _canv;
+    ImmuElem disp() => ImmuElem(HTML.div(id: "hudwrap", children: [_canv]));
 
     @Mut(["ctx"])
     static void _frameUpdate(Pos p1pos, Pos panCenter, Cctx ctx, int w, int h, double scale, Iterable<Drawable> drawItems) {
@@ -569,28 +572,31 @@ class SimpleOb implements Drawable {
     final num _width;
     final num _height;
     final Power? txpower; 
+    final bool _visible;
 
-    SimpleOb(this.pos, this._img, this._width, this._height, this.txpower);
+    SimpleOb(this.pos, this._img, this._width, this._height, this.txpower, this._visible);
 
     /// Load image and create instance.
     /// This is a @factory, but dart's static checker doesn't recognize it
     @Eff("http-req")
-    static Future<SimpleOb> create(String imgPath, Pos pos, num height, [Power? txpower]) async {
+    static Future<SimpleOb> create(String imgPath, Pos pos, num height, [Power? txpower, bool visible = true]) async {
         final img = await imageload(imgPath);
-        return SimpleOb.fromImg(img, pos, height, txpower);
+        return SimpleOb.fromImg(img, pos, height, txpower, visible);
     }
 
     /// Given a pre-loaded image, create instance.
     @factory
-    static SimpleOb fromImg(HTMLImageElement img, Pos pos, num height, [Power? txpower]) {
+    static SimpleOb fromImg(HTMLImageElement img, Pos pos, num height, [Power? txpower, bool visible = true]) {
         final width = height * img.width / img.height;
-        return SimpleOb(pos, img, width, height, txpower);  
+        return SimpleOb(pos, img, width, height, txpower, visible);  
     }
 
     @override
     @Mut(["ctx"])
     void draw(Cctx ctx, GridCC gridcc) {
-        gridcc.drawImage(pos, _img, _width, _height, ctx);
+        if (_visible) {
+            gridcc.drawImage(pos, _img, _width, _height, ctx);
+        }
     }
 }
 
@@ -598,22 +604,22 @@ typedef LOB = ({Pos source, Azimuth azimuth, Power rxpow});
 
 
 class LOBCol implements Drawable {
-    final HTMLInputElement _gatheringLobsCb;
-    final HTMLButtonElement _clearBtn;
+    final ImmuElem _gatheringLobsBtn;
+    final ImmuElem _clearBtn;
     final Stream<ImmuList<LOB>> _lobsStm;
     final Observable<ImmuList<LOB>> _lobs;
     /// Selected LOB
     final Observable<LOB?> _sellob;
 
-    LOBCol(this._gatheringLobsCb, this._clearBtn, this._lobsStm, this._lobs, this._sellob);
+    LOBCol(this._gatheringLobsBtn, this._clearBtn, this._lobsStm, this._lobs, this._sellob);
 
     @factory
     static LOBCol create(KbStm keydown, Stream<LOB> univLobs, Stream<MouseEvent> canvclick, Observable<Pos> center, Observable<double> scaleObs) {
         final (clear, clearBtn) = _configClearing(keydown);
-        final (lobsStm, gatheringLobsCb) = _makeLobStream(clear, keydown, univLobs);
+        final (lobsStm, gatheringLobsBtn) = _makeLobStream(clear, keydown, univLobs);
         final lobs = Observable(ImmuList<LOB>([]), lobsStm);
         final sellob = _configChosenLOB(lobs, canvclick, center, scaleObs);
-        return LOBCol(gatheringLobsCb, clearBtn, lobsStm, lobs, sellob);
+        return LOBCol(gatheringLobsBtn, clearBtn, lobsStm, lobs, sellob);
     }
 
     static Observable<LOB?> _configChosenLOB(Observable<ImmuList<LOB>> lobs, Stream<MouseEvent> canvclick, Observable<Pos> center, Observable<double> scaleObs) {
@@ -644,36 +650,58 @@ class LOBCol implements Drawable {
     
     /// Returns a stream and the clear button.
     /// Events in the stream (both clicks and keypresses) should cause a clear.
-    static (Stream<Object>, HTMLButtonElement) _configClearing(KbStm keydown) {
+    static (Stream<Object>, ImmuElem) _configClearing(KbStm keydown) {
         final cDown = keydown.where((ev) => ev.code == "KeyC").asBroadcastStream();
         final cbtn = HTML.button()
             ..addFlicker(cDown)
             ..id = "clear-btn"
+            ..className = "game-btn"
             ..innerText = "Clear LOBs [ C ]";
-        return (StreamGroup.merge([cDown, cbtn.onClick]), cbtn);
+        return (StreamGroup.merge([cDown, cbtn.onClick]), ImmuElem(cbtn));
     }
 
     /// Create a stream of the lobs saved on the simulated DFing equipment,
     /// not to be confused with the stream of lobs coming from the universe.
     /// Also create the checkbox which controls whether the user is gathering lobs.
-    static (Stream<ImmuList<LOB>>, HTMLInputElement) _makeLobStream(
-            Stream<Object> clear, KbStm keydown, Stream<LOB> univLobs)
-    {
-        final gatheringLobsCb = HTML.checkbox()..id = "lob-cb"..defaultChecked = true;
+    static (Stream<ImmuList<LOB>>, ImmuElem) _makeLobStream(
+            Stream<Object> clear, KbStm keydown, Stream<LOB> univLobs) {
+        /// Gathering Lobs SCoLV
+        final gLSCoLV = SCoLV.create(true);
+        final playtext = HTML.p()
+            ..className = "fa-solid fa-stop msgs-text col-red";
+        final gatheringLobsBtn = HTML.button()..id = "lob-btn"..className = "game-btn"
+            ..appendChild(playtext);
+
+        gLSCoLV.stream.listen((play) {
+        if (play) {
+                playtext.classList.add("fa-stop");
+                playtext.classList.remove("fa-play");
+                playtext.classList.add("col-red");
+            }
+            else {
+                playtext.classList.add("fa-play");
+                playtext.classList.remove("fa-stop");
+                playtext.classList.remove("col-red");
+            }
+        });
+
+
         keydown
             .where((ev) => ev.code == "KeyG")
-            .listen((_) => gatheringLobsCb.checked = !gatheringLobsCb.checked);
-        final filtlobs = univLobs.where((_) => gatheringLobsCb.checked);
+            .listen((_) => gLSCoLV.set(!gLSCoLV.latestVal));
+        gatheringLobsBtn.onClick.listen((_) => gLSCoLV.set(!gLSCoLV.latestVal));
+
+        final filtlobs = univLobs.where((_) => gLSCoLV.latestVal);
         
         final curlobs = SCoLV.create(ImmuList<LOB>([]));
         filtlobs.listen((lob) {
-            curlobs.set(curlobs.latestVal.add(lob));
+            curlobs.set(curlobs.latestVal.followedBy([lob]));
         });
         clear.listen((_) {
             curlobs.set(ImmuList([]));
         });
         
-        return (curlobs.stream, gatheringLobsCb);
+        return (curlobs.stream, ImmuElem(gatheringLobsBtn));
     }
 
     static String _fmtpow(LOB? lob) {
@@ -688,12 +716,12 @@ class LOBCol implements Drawable {
     }
 
     HTMLDivElement dispCtl() {
-        return HTML.div()
-        ..appendChild(_clearBtn..className = "game-btn")
-        ..appendChild(HTML.div(id: "lobs-cb-with-text", children: [
-            HTML.span()..innerText = "Gathering LOBs [ G ]: ",
-            _gatheringLobsCb
+        final globtext = ImmuElem(HTML.span()..innerText = "Gathering LOBs [ G ] ");
+        final lobsBtnWithText = ImmuElem(HTML.div(id: "lobs-btn-with-text", ichildren: [
+            globtext,
+            _gatheringLobsBtn,
         ]));
+        return HTML.div(ichildren: [_clearBtn, lobsBtnWithText]);
     }
 
     @Mut(["ctx"])
@@ -708,13 +736,30 @@ class LOBCol implements Drawable {
         gridcc.drawLine(lob.source, dest, ctx);
     }
 
+/* 
+
+The following is a collection of tips to improve canvas performance.
+Pre-render similar primitives or repeating objects on an offscreen canvas
+
+If you find yourself repeating some of the same drawing operations on each animation frame, consider offloading them to an offscreen canvas. You can then render the offscreen image to your primary canvas as often as needed, without unnecessarily repeating the steps needed to generate it in the first place.
+
+myCanvas.offscreenCanvas = document.createElement("canvas");
+myCanvas.offscreenCanvas.width = myCanvas.width;
+myCanvas.offscreenCanvas.height = myCanvas.height;
+
+myCanvas.getContext("2d").drawImage(myCanvas.offScreenCanvas, 0, 0);
+*/
+
+
     /// Same as plain `draw()` but the dependencies are explicit.
     @Mut(["ctx"])
     static void drawStatic(Iterable<LOB> lobs, LOB? sellob, Cctx ctx, GridCC gridcc) {
         void drawOne(LOB lob, String color) => _drawOne(ctx, gridcc, lob, color);
+        ctx.globalAlpha = 0.5;
         for (final lob in withoutLast(lobs)) {
             drawOne(lob, "orange");
         }
+        ctx.globalAlpha = 1.0;
         lobs.lastOrNull?.then((lob) => drawOne(lob, "red"));
         sellob?.then((lob) => drawOne(lob, "blue"));
     }
@@ -812,10 +857,10 @@ Mission strToMission(String? missionName) {
 
 class MissionUI {
     final Mission mission;
-    final Pos txpos;
+    final Pos _txpos;
     final _dialog = OkCancelDialog();
 
-    MissionUI(String href, this.txpos) :
+    MissionUI(String href, this._txpos) :
       mission = _parseMission(href);
 
     static Mission _parseMission(String href) {
@@ -863,7 +908,7 @@ class MissionUI {
     }
 
     Result<String, String> checkCoords(Pos pos) =>
-        pos == txpos
+        pos == _txpos
         ? Success("Correct!")
         : Failure("Those grid coordinates were incorrect. Try again.");
 
@@ -914,13 +959,9 @@ class MissionUI {
 
 
 HTMLElement assembleElems(CanvMLeft cmLife, CanvMRight cmLob, {required Iterable<HTMLElement> tabletChildren}) {
-    final cmLobHudWrapped = <HTMLElement>[HTML.div(
-        id: "hudwrap",
-        children: [cmLob.disp()]
-    )];
     final cmLobAndAssociated = HTML.div(
         id: "cmlobparent",
-        children: cmLobHudWrapped.followedBy(tabletChildren)
+        ichildren: [cmLob.disp()].followedBy(tabletChildren.map((el) => ImmuElem(el)))
     );
     return HTML.div(children: [
         HTML.div(
@@ -1131,15 +1172,35 @@ class Objs implements Drawable {
         final bush2 = await imageload("../assets/bush_2.png");
 
         SimpleOb makebush() {
-            /// random number between -100 and 100
-            double rn() => (random.nextDouble() - 0.5) * 200;
+            /// random number not on roads
+            Pos rnPosShift() {
+                switch (random.nextInt(4)) {
+                    case 0: return Pos(
+                        GC(499 * random.nextDouble() + -500),
+                        GC(499 * random.nextDouble() + -500)
+                    );
+                    case 1: return Pos(
+                        GC(499 * random.nextDouble() + -500),
+                        GC(499 * random.nextDouble() + 10)
+                    );
+                    case 2: return Pos(
+                        GC(499 * random.nextDouble() + 10),
+                        GC(499 * random.nextDouble() + 10)
+                    );
+                    case _: return Pos(
+                        GC(499 * random.nextDouble() + 10),
+                        GC(499 * random.nextDouble() + -500)
+                    );
+                    // Add two more cases
+                    // and experiment to position
+                }
+            }
             final height = random.nextInt(6) * 5 + 20;
             final img = random.nextBool() ? bush1 : bush2;
-            final posShift = Pos(GC(rn()), GC(rn()));
-            return SimpleOb.fromImg(img, distribCenter + posShift, height);
+            return SimpleOb.fromImg(img, distribCenter + rnPosShift(), height);
         }
 
-        return ImmuList([for (var i = 0; i < 2000; i++) makebush()]);
+        return ImmuList([for (var i = 0; i < 20000; i++) makebush()]);
     }
 
     @override
@@ -1173,8 +1234,8 @@ class Ground implements Drawable {
         //     }
         // }
         ctx.fillStyle = "#777".toJS;
-        gridcc.fillRectCent(coloringCenter + Pos(GC(3), GC(5)), 100, 2000, ctx);
-        gridcc.fillRectCent(coloringCenter + Pos(GC(10), GC(5)), 2000, 100, ctx);
+        gridcc.fillRectCent(coloringCenter + Pos(GC(5), GC(5)), 140 * gridcc.scale, 22000 * gridcc.scale, ctx);
+        gridcc.fillRectCent(coloringCenter + Pos(GC(10), GC(5)), 22000 * gridcc.scale, 140 * gridcc.scale, ctx);
     }
 }
 
@@ -1214,6 +1275,7 @@ class LeftRightM {
             else {
                 combicon.classList.add("fa-object-ungroup");
                 combicon.classList.remove("fa-object-group");
+                scright.add(rig);
             }
         });
         
@@ -1234,9 +1296,11 @@ void main() async {
     final keydown = document.body!.onKeyDown;
     final keyup = document.body!.onKeyUp;
     final frameStm = makeFrameStm();
+    final txpos = Pos(GC(70008), GC(40145));
+    final mui = MissionUI(window.location.href, txpos);
     final p1 = PlayerPos.create(Pos(GC(70012), GC(40085)), keydown, keyup, frameStm);
     final phud = PlayerHUD(p1.posStm);
-    final t1 = await SimpleOb.create("../assets/tx.png", Pos(GC(70008), GC(40145)), 30, Power(mW: 100));
+    final t1 = await SimpleOb.create("../assets/tx.png", txpos, 30, Power(mW: 100), mui.mission != Mission.m1);
     final sim = Sim.create(p1.posObs, t1.pos, t1.txpower!);
     final bushes = await Objs.create(p1.posObs.latestVal);
     final avatarlife = await Avatar.create(p1.dirxyStm, p1.runningObs, p1.posObs);
@@ -1247,24 +1311,26 @@ void main() async {
     final cmLife = CanvMLeft.create(canvWidth, canvHeight);
     final cmLob = CanvMRight.create(canvWidth, canvHeight, document.body!.onMouseUp);
     final lobc = LOBCol.create(keydown, sim.univLobs, cmLob.click, p1.posObs, zoom.scaleObs);
-    final mui = MissionUI(window.location.href, t1.pos);
     final msgs = Messages();
     final lrm = LeftRightM.create([ground, avatarlife, bushes, t1], [lobc, grid], [reticle]); 
     final pan = Pan.create(cmLob.mevStm, p1.posObs, p1.posStm, zoom.scaleObs);
     cmLife.start(p1.posStm, lrm.leftObs, lrm.isMergedStm);
     cmLob.start(p1.posStm, lrm.rightObs, lrm.isMergedStm, zoom.scaleObs, pan.center);
-    document.getElementById("gameroot")!.replaceChildren(
-        assembleElems(cmLife, cmLob, tabletChildren: [
-            phud.disp(),
-            lobc.dispInfo(),
-            lobc.dispCtl(),
-            mui.disp(),
-            mui.dispResult(),
-            zoom.disp(),
-            msgs.dispenv(),
-            msgs.dispoverlay(),
-            pan.disp(),
-            lrm.disp(),
-        ])
-    ); 
+    switch(document.getElementById("gameroot")) {
+        case null: window.alert("Cannot attach elements; no `gameroot` element found");
+        case final gamerootelem: gamerootelem.replaceChildren(
+            assembleElems(cmLife, cmLob, tabletChildren: [
+                phud.disp(),
+                lobc.dispInfo(),
+                lobc.dispCtl(),
+                mui.disp(),
+                mui.dispResult(),
+                zoom.disp(),
+                pan.disp(),
+                lrm.disp(),
+                msgs.dispenv(),
+                msgs.dispoverlay(),
+            ])
+        );
+    }
 }
