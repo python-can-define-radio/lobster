@@ -24,9 +24,9 @@ class HTML {
             document.createElement('p') as HTMLParagraphElement;    
     static HTMLSpanElement span() =>
             document.createElement('span') as HTMLSpanElement;
-    static HTMLCanvasElement canvas(String id, int w, int h) {
+    static HTMLCanvasElement canvas(String className, int w, int h) {
         return (document.createElement('canvas') as HTMLCanvasElement)
-                ..id = id
+                ..className = className
                 ..width = w
                 ..height = h;
     }
@@ -50,7 +50,8 @@ class HTML {
         }
         if (ichildren != null) {
             for (final ic in ichildren) {
-                e.appendChild(ic.e);
+                e.appendChild(ic.privateElemDoNotTouchInFilesOutsideHtmlHelp
+              );
             }
         }
         return e;
@@ -77,7 +78,7 @@ extension Flickerable on HTMLElement {
     }
 }
 
-extension type ImmuElem(HTMLElement e) {}
+extension type ImmuElem(HTMLElement privateElemDoNotTouchInFilesOutsideHtmlHelp) {}
 
 
 /// Repeatedly call requestAnimationFrame; pass the time delta as an argument to `frameUpdate`

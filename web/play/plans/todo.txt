@@ -2,7 +2,7 @@
 Next steps (overview) -- details for each below in same order
 
 1 week
-- Merged view
+- Efficiency
 - Mission instructions (success)
 
 ----- Publish version 2 -----
@@ -28,9 +28,8 @@ Next steps (overview) -- details for each below in same order
 ##########                         1 week                          ##########
 #############################################################################
 #############################################################################
-Merged view:
-    - Right canvas: button/checkbox to turn on/off merged view
-        - need to fix right canv unmerge draw stuff
+- Efficiency
+    - attempt multiple stacked canvasses as per MDN; see whether it helps on J computer
 
 #############################################################################
 Mission instructions:

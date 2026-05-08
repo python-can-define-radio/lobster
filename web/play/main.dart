@@ -12,9 +12,6 @@ import '../dartlib/custom.dart';
 import '../dartlib/htmlhelp.dart';
 
 
-const canvWidth = 600;
-const canvHeight = 400;
-
 
 class OkCancelDialog {
     final _dialogWrap = HTML.div();
@@ -62,7 +59,9 @@ class GridCC {
     /// Zoom scale. Example: scale = 0.5 would be zoomed out by a factor of 2.
     final double scale;
     final Pos center;
-    GridCC(this.scale, this.center);
+    final int w;
+    final int h;
+    GridCC(this.scale, this.center, this.w, this.h);
     
     /// Returns (x, y) in canvas units
     (double, double) cu(Pos p) => (
@@ -85,8 +84,8 @@ class GridCC {
         /// Notice that the vertical formula is inverted 
         /// because canvases use down as positive y direction
         return (
-            xcu: xcuUnshifted - xcentcu + canvWidth / 2,
-            ycu: ycentcu - ycuUnshifted + canvHeight / 2,
+            xcu: xcuUnshifted - xcentcu + w / 2,
+            ycu: ycentcu - ycuUnshifted + h / 2,
         );
     }
 
@@ -190,8 +189,16 @@ class Pos {
 }
 
 
-abstract class Drawable {
+sealed class AbleToDraw {
+    
+}
+
+abstract class Drawable extends AbleToDraw {
     void draw(Cctx ctx, GridCC gridcc);
+}
+
+abstract class HasOwnCanv extends AbleToDraw {
+    HTMLCanvasElement get canv;
 }
 
 
@@ -419,13 +426,14 @@ class CanvMLeft {
     final HTMLCanvasElement _canv;
     final int _w;
     final int _h;
+    final Iterable<HTMLCanvasElement> _stackedCanvs;
 
-    CanvMLeft(this._canv, this._w, this._h);
+    CanvMLeft(this._canv, this._w, this._h, this._stackedCanvs);
 
     @factory
-    static CanvMLeft create(int w, int h) {
+    static CanvMLeft create(int w, int h, Iterable<HTMLCanvasElement> stackedCanvs) {
         final canv = HTML.canvas("life", w, h);
-        return CanvMLeft(canv, w, h);
+        return CanvMLeft(canv, w, h, stackedCanvs);
     }
 
     /// Start drawing on p1PosStm events
@@ -444,12 +452,17 @@ class CanvMLeft {
         });
     }
 
-    HTMLCanvasElement disp() => _canv;
+    HTMLElement disp() {
+        return HTML.div(
+            className: "cmlifeparent",
+            children: [_canv].followedBy(_stackedCanvs),
+        )..style.minWidth = "${_w}px";
+    }
 
     @Mut(["ctx"])
     static void _frameUpdate(Pos p1pos, Cctx ctx, int w, int h,Iterable<Drawable> drawItems) {
         const scaleLeft = 1.0; /// Left canvas doesn't allow zooming
-        final gridcc = GridCC(scaleLeft, p1pos);
+        final gridcc = GridCC(scaleLeft, p1pos, w, h);
         ctx.clearRect(0, 0, w, h);
         for (final item in drawItems) {
             item.draw(ctx, gridcc);
@@ -490,11 +503,11 @@ class CanvMRight {
         });
     }
 
-    ImmuElem disp() => ImmuElem(HTML.div(id: "hudwrap", children: [_canv]));
+    ImmuElem disp() => ImmuElem(HTML.div(className: "hudwrap", children: [_canv]));
 
     @Mut(["ctx"])
     static void _frameUpdate(Pos p1pos, Pos panCenter, Cctx ctx, int w, int h, double scale, Iterable<Drawable> drawItems) {
-        final gridcc = GridCC(scale, panCenter);
+        final gridcc = GridCC(scale, panCenter, w, h);
         ctx.clearRect(0, 0, w, h);
         for (final item in drawItems) {
             item.draw(ctx, gridcc);
@@ -790,7 +803,6 @@ class Azimuth {
 }
 
 
-
 class Power {
     final double mW;
     double get dBm => 10 * logbase10(mW);
@@ -936,13 +948,12 @@ class MissionUI {
 
     @Eff("window.open")
     HTMLFormElement _form() {
-        final form = HTML.form();
+        final form = HTML.form()..id = "submit-coords-form";
         final inpEl = HTMLInputElement()
-            ..id = "grid-input"
             ..placeholder = "Enter grid coordinates";
         final subbtn = HTML.inputsubmit()
             ..addFlicker(form.onSubmit)
-            ..id = "submit-btn"
+            ..value = "Submit"
             ..className = "game-btn";
         form
             ..appendChild(inpEl)
@@ -960,15 +971,13 @@ class MissionUI {
 
 HTMLElement assembleElems(CanvMLeft cmLife, CanvMRight cmLob, {required Iterable<HTMLElement> tabletChildren}) {
     final cmLobAndAssociated = HTML.div(
-        id: "cmlobparent",
+        className: "cmlobparent",
         ichildren: [cmLob.disp()].followedBy(tabletChildren.map((el) => ImmuElem(el)))
     );
-    return HTML.div(children: [
-        HTML.div(
-            id: "two-canvasses",
-            children: [cmLife.disp(), cmLobAndAssociated]
-        )
-    ]);
+    return HTML.div(
+        id: "two-canvasses",
+        children: [cmLife.disp(), cmLobAndAssociated]
+    );
 }
 
 
@@ -1056,7 +1065,10 @@ class Pan {
         });
 
         mevStm.where((mev) => mev.isDown).listen((mev) {
-            final diff = GridCC(scaleObs.latestVal, pannedCenter.latestVal).gc(-mev.dx, mev.dy);
+            /// An arbitrary value for width and height. It isn't used in the calculation.
+            /// TODO: can this be expressed more cleanly? Probably separate the gc function in GridCC
+            final uwh = 10000;
+            final diff = GridCC(scaleObs.latestVal, pannedCenter.latestVal, uwh, uwh).gc(-mev.dx, mev.dy);
             pannedCenter.set(pannedCenter.latestVal + diff);
             followPlayer.set(false);
         });
@@ -1153,15 +1165,21 @@ class Messages {
 
 
 @immutable
-class Objs implements Drawable {
+class Objs implements HasOwnCanv {
     final ImmuList<SimpleOb> _objs;
-
-    Objs(this._objs);
+    @override
+    final HTMLCanvasElement canv;
+    
+    Objs(this._objs, this.canv);
     
     @Eff("http-req")
     @factory
-    static Future<Objs> create(Pos playerInitPos) async {
-        return Objs(await createBushes(playerInitPos));
+    static Future<Objs> create(Pos playerInitPos, int w, int h) async {
+        final canv = HTML.canvas("life", w, h);
+        final ctx = canv.getContext('2d') as Cctx;
+        final fixthis = Objs(await createBushes(playerInitPos), canv);
+        fixthis.drawInProgress(ctx, GridCC(1, playerInitPos, w, h));
+        return fixthis;
     }
 
     /// randomly-distributed
@@ -1191,8 +1209,6 @@ class Objs implements Drawable {
                         GC(499 * random.nextDouble() + 10),
                         GC(499 * random.nextDouble() + -500)
                     );
-                    // Add two more cases
-                    // and experiment to position
                 }
             }
             final height = random.nextInt(6) * 5 + 20;
@@ -1203,27 +1219,33 @@ class Objs implements Drawable {
         return ImmuList([for (var i = 0; i < 20000; i++) makebush()]);
     }
 
-    @override
     @Mut(["ctx"])
-    void draw(Cctx ctx, GridCC gridcc) {
+    void drawInProgress(Cctx ctx, GridCC gridcc) {
         for (final obj in _objs.values) {
-            obj.draw(ctx, gridcc);
+            final xdiff = (obj.pos.x.val - gridcc.center.x.val).abs();
+            final ydiff = (obj.pos.y.val - gridcc.center.y.val).abs();
+            if (gridcc.scale < 0.05) {
+                return;
+            }
+            if (xdiff < (30 / gridcc.scale) && ydiff < (30 / gridcc.scale)) {
+                obj.draw(ctx, gridcc);
+            }
         }
     }
 }
 
 
-class Ground implements Drawable {
+class Road implements Drawable {
     Pos coloringCenter;
     HTMLImageElement img;
 
-    Ground(this.coloringCenter, this.img);
+    Road(this.coloringCenter, this.img);
 
     @Eff("http-req")
     @factory
-    static Future<Ground> create(Pos coloringCenter) async {
+    static Future<Road> create(Pos coloringCenter) async {
         final img = await imageload("../assets/groundtiles.png");
-        return Ground(coloringCenter, img);
+        return Road(coloringCenter, img);
     }
 
     @override
@@ -1246,7 +1268,7 @@ class LeftRightM {
     Observable<ImmuList<Drawable>> leftObs;
     Observable<ImmuList<Drawable>> rightObs;
     Stream<bool> isMergedStm;
-    final ImmuElem _disp;
+    final HTMLElement _disp;
     
     LeftRightM(this.leftObs, this.rightObs, this._disp, this.isMergedStm);
 
@@ -1282,12 +1304,12 @@ class LeftRightM {
         return LeftRightM(
             Observable(lef, scleft.stream),
             Observable(rig, scright.stream),
-            ImmuElem(combbtn),
+            combbtn,
             scIsMerged.stream,
         );
     }
 
-    HTMLElement disp() => _disp.e;
+    HTMLElement disp() => _disp;
 }
 
 
@@ -1296,23 +1318,25 @@ void main() async {
     final keydown = document.body!.onKeyDown;
     final keyup = document.body!.onKeyUp;
     final frameStm = makeFrameStm();
+    final canvLeftWH = (w: 640, h: 445);
+    final canvRightWH =  (w: 600, h: 400);
     final txpos = Pos(GC(70008), GC(40145));
     final mui = MissionUI(window.location.href, txpos);
     final p1 = PlayerPos.create(Pos(GC(70012), GC(40085)), keydown, keyup, frameStm);
     final phud = PlayerHUD(p1.posStm);
     final t1 = await SimpleOb.create("../assets/tx.png", txpos, 30, Power(mW: 100), mui.mission != Mission.m1);
     final sim = Sim.create(p1.posObs, t1.pos, t1.txpower!);
-    final bushes = await Objs.create(p1.posObs.latestVal);
-    final avatarlife = await Avatar.create(p1.dirxyStm, p1.runningObs, p1.posObs);
+    final bushes = await Objs.create(p1.posObs.latestVal, canvLeftWH.w, canvLeftWH.h);
+    final avatar = await Avatar.create(p1.dirxyStm, p1.runningObs, p1.posObs);
     final reticle = Reticle(p1.posObs);
-    final ground = await Ground.create(p1.posObs.latestVal);
+    final road = await Road.create(p1.posObs.latestVal);
     final zoom = Zoom.create();
     final grid = Grid(zoom.scaleObs);
-    final cmLife = CanvMLeft.create(canvWidth, canvHeight);
-    final cmLob = CanvMRight.create(canvWidth, canvHeight, document.body!.onMouseUp);
+    final cmLife = CanvMLeft.create(canvLeftWH.w, canvLeftWH.h, [bushes.canv]);
+    final cmLob = CanvMRight.create(canvRightWH.w, canvRightWH.h, document.body!.onMouseUp);
     final lobc = LOBCol.create(keydown, sim.univLobs, cmLob.click, p1.posObs, zoom.scaleObs);
     final msgs = Messages();
-    final lrm = LeftRightM.create([ground, avatarlife, bushes, t1], [lobc, grid], [reticle]); 
+    final lrm = LeftRightM.create([road, avatar, t1], [lobc, grid], [reticle]); 
     final pan = Pan.create(cmLob.mevStm, p1.posObs, p1.posStm, zoom.scaleObs);
     cmLife.start(p1.posStm, lrm.leftObs, lrm.isMergedStm);
     cmLob.start(p1.posStm, lrm.rightObs, lrm.isMergedStm, zoom.scaleObs, pan.center);

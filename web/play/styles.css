@@ -40,20 +40,21 @@ h2 {
     text-align: center;
 }
 
-#life {
-    background-color: #cfc;
+.life {
+    /* background-color: #cfc; */
     border: 2px solid #555;
     border-radius: 8px;
+    position: absolute;
 }
 
-#hud {
+.hud {
     background-color: #0a0f14;
     border: 20px solid #000;
     border-radius: 8px;
     box-shadow: 0 0 30px #000 inset, 0 0 12px #000;
 }
 
-#hudwrap {
+.hudwrap {
     border: 2px solid #aaa;
     border-radius: 8px;
 }
@@ -112,18 +113,6 @@ h2 {
 
 #lob-btn:focus {
     outline: none;
-}
-
-#grid-input {
-    position: absolute;
-    bottom: 32px;
-    left: 50px;
-}
-
-#submit-btn {
-    position: absolute;
-    bottom: 30px;
-    left: 230px;
 }
 
 #recenter-btn {
@@ -202,7 +191,11 @@ h2 {
     gap: 16px;
 }
 
-#cmlobparent {
+.cmlifeparent {
+    position: relative;
+}
+
+.cmlobparent {
     color: lightgreen;
     position: relative;
 }
@@ -277,4 +270,15 @@ h2 {
 .FAQs {
     margin-left: 50px;
     margin-right: 50px;
+}
+
+#submit-coords-form {
+    position: absolute;
+    bottom: 30px;
+    left: 50px;
+}
+
+#submit-coords-form input {
+    margin-left: 3px;
+    margin-right: 3px;
 }
