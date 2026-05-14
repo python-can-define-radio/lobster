@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:js_interop';
 import 'package:web/web.dart';
-import 'custom.dart' show Mut, Eff;
+import 'generic.dart' show Mut, Eff;
 import 'dart:math';
 
 

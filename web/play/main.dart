@@ -8,7 +8,7 @@ import 'dart:math';
 import 'package:async/async.dart' hide Result;
 import 'package:meta/meta.dart';
 import 'package:web/web.dart';
-import '../dartlib/custom.dart';
+import '../dartlib/generic.dart';
 import '../dartlib/htmlhelp.dart';
 
 
@@ -64,12 +64,12 @@ class GridCC {
     GridCC(this.scale, this.center, this.w, this.h);
     
     /// Returns (x, y) in canvas units
-    (double, double) cu(Pos p) => (
+    static (double, double) cu(Pos p, double scale) => (
         p.x.val * gridMB * scale,
         p.y.val * gridMB * scale,
     );
 
-    Pos gc(num x, num y) => Pos(
+    static Pos gc(num x, num y, double scale) => Pos(
         GC(x / gridMB / scale),
         GC(y / gridMB / scale),
     );
@@ -79,8 +79,8 @@ class GridCC {
     /// - shifts based on `center` and the size of the canvas
     /// Returns a pair that is suitable for canvas draw functions.
     ({double xcu, double ycu}) cush(Pos p) {
-        final (xcuUnshifted, ycuUnshifted) = cu(p);
-        final (xcentcu, ycentcu) = cu(center);
+        final (xcuUnshifted, ycuUnshifted) = cu(p, scale);
+        final (xcentcu, ycentcu) = cu(center, scale);
         /// Notice that the vertical formula is inverted 
         /// because canvases use down as positive y direction
         return (
@@ -171,7 +171,8 @@ class GC {
 class Pos {
     final GC x;
     final GC y;
-    Pos(this.x, this.y);
+    final int? precision;
+    Pos(this.x, this.y, {this.precision});
 
     Pos operator +(Pos other) =>
         Pos(x + other.x, y + other.y);
@@ -186,6 +187,27 @@ class Pos {
 
     @override
     int get hashCode => (x.val * 1e6 + y.val).toInt();
+
+    Result<bool, String> closeTo(Pos other, int minimumPrecision) {
+        final precis = precision;
+        if (precis == null) {
+            return Failure("Invalid precision. (This is a bug in the program; there is nothing that you as the player can do about it.)");
+        } else if (precis < minimumPrecision) {
+            return Failure("Your submitted coordinates were not sufficiently precise. Must enter at least ${precis * 2} digit grid.");
+        } else if (precis == 5) {
+            final xdiff = (x.val - other.x.val).abs();
+            final ydiff = (y.val - other.y.val).abs();
+            return Success(xdiff <= 1 && ydiff <= 1);
+        } else if (precis == 4) {
+            final xdiff = (x.val - (other.x.val/10)).abs();
+            final ydiff = (y.val - (other.y.val/10)).abs();
+            return Success(xdiff <= 1 && ydiff <= 1);
+        // } else if (precis == 3) {
+        //     return Success(xdiff <= 100 && ydiff <= 100);
+        } else {
+            return Failure("Invalid precision. (This is a bug in the program; there is nothing that you as the player can do about it.)");
+        }
+    }
 }
 
 
@@ -423,44 +445,43 @@ class Reticle implements Drawable {
 
 
 class CanvMLeft {
-    final HTMLCanvasElement _canv;
+    final Cctx _ctx;
     final int _w;
     final int _h;
-    final Iterable<HTMLCanvasElement> _stackedCanvs;
+    final HTMLElement _disp;
 
-    CanvMLeft(this._canv, this._w, this._h, this._stackedCanvs);
+    CanvMLeft(this._ctx, this._w, this._h, this._disp);
 
     @factory
     static CanvMLeft create(int w, int h, Iterable<HTMLCanvasElement> stackedCanvs) {
         final canv = HTML.canvas("life", w, h);
-        return CanvMLeft(canv, w, h, stackedCanvs);
+        final disp = HTML.div(
+            className: "cmlifeparent",
+            children: [canv].followedBy(stackedCanvs),
+        )..style.minWidth = "${w}px";
+        final ctx = canv.getContext('2d') as Cctx;
+        return CanvMLeft(ctx, w, h, disp);
     }
 
     /// Start drawing on p1PosStm events
-    @Mut(["this._canv"])
+    @Mut(["this._ctx", "this._disp"])
     void start(Stream<Pos> p1PosStm, Observable<ImmuList<Drawable>> drawItemsObs, Stream<bool> isMergedStm) {
-        final ctx = _canv.getContext('2d') as Cctx;
         p1PosStm.listen((p1pos) {
-            _frameUpdate(p1pos, ctx, _w, _h, drawItemsObs.latestVal);
+            _frameUpdate(p1pos, _ctx, _w, _h, drawItemsObs.latestVal);
         });
         isMergedStm.listen((isMerged) {
             if (isMerged) {
-                _canv.classList.add("hidden");
+                _disp.classList.add("hidden");
             } else {
-                _canv.classList.remove("hidden");
+                _disp.classList.remove("hidden");
             }
         });
     }
 
-    HTMLElement disp() {
-        return HTML.div(
-            className: "cmlifeparent",
-            children: [_canv].followedBy(_stackedCanvs),
-        )..style.minWidth = "${_w}px";
-    }
+    HTMLElement disp() => _disp;
 
     @Mut(["ctx"])
-    static void _frameUpdate(Pos p1pos, Cctx ctx, int w, int h,Iterable<Drawable> drawItems) {
+    static void _frameUpdate(Pos p1pos, Cctx ctx, int w, int h, Iterable<Drawable> drawItems) {
         const scaleLeft = 1.0; /// Left canvas doesn't allow zooming
         final gridcc = GridCC(scaleLeft, p1pos, w, h);
         ctx.clearRect(0, 0, w, h);
@@ -588,7 +609,7 @@ class SimpleOb implements Drawable {
     final bool _visible;
 
     SimpleOb(this.pos, this._img, this._width, this._height, this.txpower, this._visible);
-
+    
     /// Load image and create instance.
     /// This is a @factory, but dart's static checker doesn't recognize it
     @Eff("http-req")
@@ -856,33 +877,48 @@ class Sim {
 
 enum Mission { explore, tutorial, m1 }
 
-Mission strToMission(String? missionName) { 
-    for (final m in Mission.values) {
-        if (m.name == missionName) {
-            return m;
-        }
+class MissionLogic {
+    final Mission mission;
+    final Pos txpos;
+    
+    MissionLogic(this.mission, this.txpos);
+    
+    /// The argument should be `window.location.href`.
+    @factory
+    static MissionLogic create(String href) {
+        final mission = _parseMission(href);
+        final random = Random();
+        final txpos = Pos(GC(69975 + random.nextInt(50)), GC(40150));
+        return MissionLogic(mission, txpos);
     }
-    print("Invalid mission name '$missionName'. Choices: ${Mission.values}. Defaulting to 'explore' mode.");
-    return Mission.explore;
+
+    static Mission _parseMission(String href) {
+        final uri = Uri.parse(href);
+        return _strToMission(uri.queryParameters["mission"]);
+    }
+
+    /// Convert to corresponding `Mission`. Default: `Mission.explore`.
+    static Mission _strToMission(String? missionName) { 
+        for (final m in Mission.values) {
+            if (m.name == missionName) {
+                return m;
+            }
+        }
+        print("Invalid mission name '$missionName'. Choices: ${Mission.values}. Defaulting to 'explore' mode.");
+        return Mission.explore;
+    }
 }
 
 
 class MissionUI {
-    final Mission mission;
-    final Pos _txpos;
     final _dialog = OkCancelDialog();
+    final MissionLogic mlogic;
 
-    MissionUI(String href, this._txpos) :
-      mission = _parseMission(href);
-
-    static Mission _parseMission(String href) {
-        final uri = Uri.parse(href);
-        return strToMission(uri.queryParameters["mission"]);
-    }
+    MissionUI(this.mlogic);
 
     @Eff("window.open")
     HTMLElement disp() => 
-        switch (mission) {
+        switch (mlogic.mission) {
             Mission.explore =>  HTML.div(),
             Mission.tutorial => _form(),
             Mission.m1 => _form(),
@@ -894,35 +930,63 @@ class MissionUI {
             "Example 10 digit grid: 12345 45678\n"
             "Example 8 digit grid: 1234 8765\n";
         
-        /// If `val` is a list of exactly two positive integers, return them wrapped in `Success`.
+        /// If `val.$1` and `val.$2` are
+        /// positive integers, return them wrapped in `Success`.
         /// Else, return a Failure.
-        Result<Pos, String> twoPsvInts(Iterable<int?> val) {
-            if (val case [int easting, int northing] 
-                    when easting >= 0 && northing >= 0) {
-                return Success(Pos(GC(easting), GC(northing)));
-            } else {
+        /// Also checks that lengths match.
+        Result<Pos, String> ensurePsvInts((String, String) val) {
+            final easting = int.tryParse(val.$1);
+            final northing = int.tryParse(val.$2);
+            final precision = val.$1.length;
+            if (val.$1.length != val.$2.length) { 
                 return Failure(errGeneric);
-            } 
+            } else if (easting == null || northing == null) {
+                return Failure(errGeneric);
+            } else if (easting < 0 || northing < 0) {
+                return Failure("Must enter positive values.");
+            } else {
+                return Success(Pos(GC(easting), GC(northing), precision: precision));
+            }
         }
 
-        bool allSameLen(Iterable<String> values) => 
-            values.map((x) => x.length)
-            .then((x) => Set.of(x))
-            .then((x) => x.length == 1);
+        Result<(T, T), String> mustBeTwo<T>(List<T> x) {
+            if (x.length == 2) {
+                return Success((x[0], x[1]));
+            } else {
+                return Failure(errGeneric);
+            }
+        }
 
         return submission
             .trim()
             .then((x) => x.split(" "))
-            .then((x) => succIf(x, allSameLen(x), errGeneric))
-            .map((x) => x.map(int.tryParse).toList())
-            .map((x) => twoPsvInts(x))
+            /// If the user accidentally entered two spaces, tolerate that.
+            .then((x) => x.where((y) => y.isNotEmpty).toList())
+            /// Reject if more/fewer than 2, for example, 123 456 789
+            .then((x) => mustBeTwo(x))
+            .map((x) => ensurePsvInts(x))
             .then((x) => flatten(x));
     }
 
-    Result<String, String> checkCoords(Pos pos) =>
-        pos == _txpos
-        ? Success("Correct!")
-        : Failure("Those grid coordinates were incorrect. Try again.");
+    Result<String, String> checkCoords(Pos pos) {
+        Result<String, String> successMsg(bool close) {
+            if (close) {
+                return Success("Correct!");
+            } else {
+                return Failure("Those grid coordinates were incorrect. Try again. DEBUG: real coords are ${mlogic.txpos.x.val} ${mlogic.txpos.y.val}");
+            }
+        }
+        final int minimumPrecision;
+        if (mlogic.mission == Mission.m1) {
+            minimumPrecision = 4; // Must enter 4 or 5 digit grid
+        } else {
+            minimumPrecision = 3; // We may later change this for other missions
+        }
+        return pos
+            .closeTo(mlogic.txpos, minimumPrecision)
+            .map((close) => successMsg(close))
+            .then((x) => flatten(x));
+    }
 
     @Eff("window.open")
     void _showAllowGoHome(String msg) {
@@ -1023,11 +1087,13 @@ class Zoom {
         final zoomin = HTML.button()
             ..className = "game-btn"
             ..id = "zoomin"
+            ..title = "Zoom in"
             ..appendChild(zoomintext);
 
         final zoomout = HTML.button()
             ..className = "game-btn"
             ..id = "zoomout"
+            ..title = "Zoom out"
             ..appendChild(zoomouttext);
 
         final wrapperdiv = HTML.div()
@@ -1065,10 +1131,7 @@ class Pan {
         });
 
         mevStm.where((mev) => mev.isDown).listen((mev) {
-            /// An arbitrary value for width and height. It isn't used in the calculation.
-            /// TODO: can this be expressed more cleanly? Probably separate the gc function in GridCC
-            final uwh = 10000;
-            final diff = GridCC(scaleObs.latestVal, pannedCenter.latestVal, uwh, uwh).gc(-mev.dx, mev.dy);
+            final diff = GridCC.gc(-mev.dx, mev.dy, scaleObs.latestVal);
             pannedCenter.set(pannedCenter.latestVal + diff);
             followPlayer.set(false);
         });
@@ -1093,65 +1156,81 @@ class Pan {
 }
 
 class Messages {
-    final _incmsgSC = StreamController<bool>();
-    final _shownSC = StreamController<bool>(); 
+    final HTMLElement _msgBtn;
+    final HTMLElement _overlay;
 
-    Messages() {
-        _incmsgSC.add(true);
-        _shownSC.add(false);
+    Messages(this._msgBtn, this._overlay);
+
+    @factory
+    static Messages create(bool msgBtnVisible) {
+        /// True if there is an unread message
+        final incmsgSC = StreamController<bool>.broadcast();
+        /// True if the messages overlay is shown
+        final shownSC = StreamController<bool>.broadcast(); 
+        final msgBtn = _makeMsgBtn(incmsgSC.stream, msgBtnVisible);
+        final (overlay, backBtnClick) = _makeOverlay(shownSC.stream);
+        backBtnClick.listen((_) => shownSC.add(false));
+        incmsgSC.add(true);
+        shownSC.add(false);
+        msgBtn.onClick.listen((_) {
+            shownSC.add(true);
+            incmsgSC.add(false);
+        });
+        return Messages(msgBtn, overlay);
     }
     
-    HTMLElement dispenv() {
+    static HTMLElement _makeMsgBtn(Stream<bool> incMsgStm, bool msgBtnVisible) {
         final messagetext = HTML.p()
             ..className = "fa-regular fa-2x msgs-text";
 
-        final msgbutton = HTML.button()
+        final msgbtn = HTML.button()
             ..className = "game-btn msgs-position"
+            ..title = "Messages"
             ..appendChild(messagetext);
 
-        _incmsgSC.stream.listen((incmsg) {
-            if (incmsg) {
+        if (!msgBtnVisible) {
+            msgbtn.classList.add("hidden");
+        }
+
+        incMsgStm.listen((incMsg) {
+            if (incMsg) {
                 messagetext.classList.add("fa-envelope");
                 messagetext.classList.remove("fa-envelope-open");
-                msgbutton.classList.add("msgs-unread");
+                msgbtn.classList.add("msgs-unread");
             }
             else {
                 messagetext.classList.add("fa-envelope-open");
                 messagetext.classList.remove("fa-envelope");
-                msgbutton.classList.remove("msgs-unread");
+                msgbtn.classList.remove("msgs-unread");
             }
         });
 
-        msgbutton.onClick.listen((_) {
-            _shownSC.add(true);
-            _incmsgSC.add(false);
-        });
-        return msgbutton;
+        return msgbtn;
     }
-    
-    HTMLElement dispoverlay() {
-        final buttontext = HTML.p()
+
+    HTMLElement dispMsgBtn() => _msgBtn;
+
+    static (HTMLElement, Stream<MouseEvent>) _makeOverlay(Stream<bool> shownStm) {
+        final backChevron = HTML.p()
             ..className = "fa-solid fa-chevron-left fa-2x msgs-text";
-        final overlay = HTML.div()
-            ..id = "overlay"
-            ..appendChild(HTML.h2()
-                ..innerText = "Messages")
-            ..appendChild(HTML.span()
-                ..className = "fa-solid fa-circle-user fa-3x")
-            ..appendChild(HTML.p()
+        
+        final backBtn = HTML.button()
+            ..className = "game-btn backbtn"
+            ..appendChild(backChevron);
+
+        final overlay = HTML.div(id: "overlay", children: [
+            backBtn,
+            HTML.h2()..innerText = "Messages",
+            HTML.span()..className = "fa-solid fa-circle-user fa-3x",
+            HTML.p()
                 ..id = "m1-message"
                 ..innerText = """The adversary's scouts are watching in force.
 
                 To avoid capture, stay behind the FLOT -- don't go any further North than grid 40100 northing.
                 
-                Once you have determined the transmitter's grid location, send it to me using your tablet's submission form using either an 8 digit grid coordinate (within 10 meters) or a 10 digit grid coordinate (within 1 meter).""")
-            ..appendChild(HTML.button()
-                ..className = "game-btn"
-                ..id = "backbtn"
-                ..appendChild(buttontext)
-                ..onClick.listen((_) => _shownSC.add(false))
-            );
-        _shownSC.stream.listen((shown) {
+                Once you have determined the transmitter's grid location, send it to me using your tablet's submission form using either an 8 digit grid coordinate (within 10 meters) or a 10 digit grid coordinate (within 1 meter).""",
+        ]);
+        shownStm.listen((shown) {
             if (shown) {
                 overlay.classList.remove("hidden");
             }
@@ -1159,27 +1238,51 @@ class Messages {
                 overlay.classList.add("hidden");
             }
         });
-        return overlay;
+        return (overlay, backBtn.onClick);
     }
+
+    HTMLElement dispoverlay() => _overlay; 
 }
 
-
+/*
+TODO after releasing version 2
 @immutable
 class Objs implements HasOwnCanv {
-    final ImmuList<SimpleOb> _objs;
     @override
     final HTMLCanvasElement canv;
+
+    // in create, use something like this:
+        final canv = HTML.canvas("life", w, h);
+        final ctx = canv.getContext('2d') as Cctx;
+        .drawInProgress(ctx, GridCC(1, playerInitPos, w, h));
+
+
+    @Mut(["ctx"])
+    void drawInProgress(Cctx ctx, GridCC gridcc) {
+        for (final obj in _objs.values) {
+            final xdiff = (obj.pos.x.val - gridcc.center.x.val).abs();
+            final ydiff = (obj.pos.y.val - gridcc.center.y.val).abs();
+            if (gridcc.scale < 0.05) {
+                return;
+            }
+            if (xdiff < (30 / gridcc.scale) && ydiff < (30 / gridcc.scale)) {
+                obj.draw(ctx, gridcc);
+            }
+        }
+    }
+
+ */
+
+@immutable
+class Objs implements Drawable {
+    final ImmuList<SimpleOb> _objs;
     
-    Objs(this._objs, this.canv);
+    Objs(this._objs);
     
     @Eff("http-req")
     @factory
     static Future<Objs> create(Pos playerInitPos, int w, int h) async {
-        final canv = HTML.canvas("life", w, h);
-        final ctx = canv.getContext('2d') as Cctx;
-        final fixthis = Objs(await createBushes(playerInitPos), canv);
-        fixthis.drawInProgress(ctx, GridCC(1, playerInitPos, w, h));
-        return fixthis;
+        return Objs(await createBushes(playerInitPos));
     }
 
     /// randomly-distributed
@@ -1219,8 +1322,9 @@ class Objs implements HasOwnCanv {
         return ImmuList([for (var i = 0; i < 20000; i++) makebush()]);
     }
 
+    @override
     @Mut(["ctx"])
-    void drawInProgress(Cctx ctx, GridCC gridcc) {
+    void draw(Cctx ctx, GridCC gridcc) {
         for (final obj in _objs.values) {
             final xdiff = (obj.pos.x.val - gridcc.center.x.val).abs();
             final ydiff = (obj.pos.y.val - gridcc.center.y.val).abs();
@@ -1250,14 +1354,32 @@ class Road implements Drawable {
 
     @override
     void draw(Cctx ctx, GridCC gridcc) {
-        // for (var x = -50.0; x < -2.0; x += 1.4) {
-        //     for (var y = -70.0; y < 2.0; y += 1.4) {
-        //         gridcc.drawSlice(coloringCenter + Pos(GC(x), GC(y)), img, ctx);
-        //     }
-        // }
+        /// concrete part of road
         ctx.fillStyle = "#777".toJS;
         gridcc.fillRectCent(coloringCenter + Pos(GC(5), GC(5)), 140 * gridcc.scale, 22000 * gridcc.scale, ctx);
         gridcc.fillRectCent(coloringCenter + Pos(GC(10), GC(5)), 22000 * gridcc.scale, 140 * gridcc.scale, ctx);
+
+        /// dashed center lines
+        const yellow = "#f5d742";
+        ctx.strokeStyle = yellow.toJS;
+        final dashlen = 15 * gridcc.scale;
+        final gaplen  = 15 * gridcc.scale;
+        ctx.lineWidth = 2.5 * gridcc.scale;
+        ctx.setLineDash([dashlen.toJS, gaplen.toJS].toJS);
+        /// vertical part
+        gridcc.drawLine(
+            coloringCenter + Pos(GC(5), GC(-500)),
+            coloringCenter + Pos(GC(5), GC(500)),
+            ctx,
+        );
+        /// horizontal part
+        gridcc.drawLine(
+            coloringCenter + Pos(GC(-500), GC(5)),
+            coloringCenter + Pos(GC(500), GC(5)),
+            ctx,
+        );
+        /// reset so other drawing isn't dashed
+        ctx.setLineDash(<JSNumber>[].toJS);
     }
 }
 
@@ -1283,6 +1405,7 @@ class LeftRightM {
             ..className = "fa-regular fa-object-group fa-2x msgs-text";
         final combbtn = HTML.button()
             ..className = "game-btn comb-position"
+            ..title = "Merge view"
             ..appendChild(combicon);
         combbtn.onClick.listen((_) {
             scIsMerged.set(!scIsMerged.latestVal);
@@ -1320,11 +1443,11 @@ void main() async {
     final frameStm = makeFrameStm();
     final canvLeftWH = (w: 640, h: 445);
     final canvRightWH =  (w: 600, h: 400);
-    final txpos = Pos(GC(70008), GC(40145));
-    final mui = MissionUI(window.location.href, txpos);
+    final mlogic = MissionLogic.create(window.location.href);
+    final mui = MissionUI(mlogic);
     final p1 = PlayerPos.create(Pos(GC(70012), GC(40085)), keydown, keyup, frameStm);
     final phud = PlayerHUD(p1.posStm);
-    final t1 = await SimpleOb.create("../assets/tx.png", txpos, 30, Power(mW: 100), mui.mission != Mission.m1);
+    final t1 = await SimpleOb.create("../assets/tx.png", mlogic.txpos, 30, Power(mW: 100), mlogic.mission != Mission.m1);
     final sim = Sim.create(p1.posObs, t1.pos, t1.txpower!);
     final bushes = await Objs.create(p1.posObs.latestVal, canvLeftWH.w, canvLeftWH.h);
     final avatar = await Avatar.create(p1.dirxyStm, p1.runningObs, p1.posObs);
@@ -1332,11 +1455,11 @@ void main() async {
     final road = await Road.create(p1.posObs.latestVal);
     final zoom = Zoom.create();
     final grid = Grid(zoom.scaleObs);
-    final cmLife = CanvMLeft.create(canvLeftWH.w, canvLeftWH.h, [bushes.canv]);
+    final cmLife = CanvMLeft.create(canvLeftWH.w, canvLeftWH.h, []);
     final cmLob = CanvMRight.create(canvRightWH.w, canvRightWH.h, document.body!.onMouseUp);
     final lobc = LOBCol.create(keydown, sim.univLobs, cmLob.click, p1.posObs, zoom.scaleObs);
-    final msgs = Messages();
-    final lrm = LeftRightM.create([road, avatar, t1], [lobc, grid], [reticle]); 
+    final msgs = Messages.create(mlogic.mission == Mission.m1);
+    final lrm = LeftRightM.create([road, avatar, bushes, t1], [lobc, grid], [reticle]); 
     final pan = Pan.create(cmLob.mevStm, p1.posObs, p1.posStm, zoom.scaleObs);
     cmLife.start(p1.posStm, lrm.leftObs, lrm.isMergedStm);
     cmLob.start(p1.posStm, lrm.rightObs, lrm.isMergedStm, zoom.scaleObs, pan.center);
@@ -1352,7 +1475,7 @@ void main() async {
                 zoom.disp(),
                 pan.disp(),
                 lrm.disp(),
-                msgs.dispenv(),
+                msgs.dispMsgBtn(),
                 msgs.dispoverlay(),
             ])
         );

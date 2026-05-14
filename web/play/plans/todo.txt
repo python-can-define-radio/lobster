@@ -2,12 +2,12 @@
 Next steps (overview) -- details for each below in same order
 
 1 week
-- Efficiency
 - Mission instructions (success)
 
 ----- Publish version 2 -----
 
 1 month:
+- Efficiency
 - Selected lob
 - Compass
 - Tutorial 
@@ -28,10 +28,6 @@ Next steps (overview) -- details for each below in same order
 ##########                         1 week                          ##########
 #############################################################################
 #############################################################################
-- Efficiency
-    - attempt multiple stacked canvasses as per MDN; see whether it helps on J computer
-
-#############################################################################
 Mission instructions:
     Success:
     - need popup saying "You've been captured!" if you cross the FLOT.
@@ -47,6 +43,10 @@ Mission instructions:
 #############################################################################
 ##########                        1 month                          ##########
 #############################################################################
+#############################################################################
+- Efficiency
+    - attempt multiple stacked canvasses as per MDN; see whether it helps on J computer
+
 #############################################################################
 Selected lob:
     - currently cannot select a specific lob and we are seeing no information on that lob
@@ -126,6 +126,15 @@ Art:
         - Multiple avatar choices
         - tree
         - building
+
+####################################################
+Tiles: 
+    this code might be useful if we try to do tiles
+    // for (var x = -50.0; x < -2.0; x += 1.4) {
+        //     for (var y = -70.0; y < 2.0; y += 1.4) {
+        //         gridcc.drawSlice(coloringCenter + Pos(GC(x), GC(y)), img, ctx);
+        //     }
+        // }
 
 
 https://opengameart.org/content/ground

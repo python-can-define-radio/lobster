@@ -235,7 +235,7 @@ h2 {
     display: none;
 }
 
-#backbtn {
+.backbtn {
     position: absolute;
     top: 0px;
     left: 0px;
