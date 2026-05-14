@@ -32,12 +32,6 @@ Mission instructions:
     Success:
     - need popup saying "You've been captured!" if you cross the FLOT.
       Button: restart mission.
-    - Some sort of completion marking, possibly on mission selection window
-        - <i class="fa-regular fa-square-check"></i> a checkmark
-        - would need localStorage for persistence
-        - if we record completion time, we'll need to add that, and we would 
-            want to consider randomizing transmitter position (perhaps fixed 
-            northing and variable eastin)
 
 #############################################################################
 #############################################################################
@@ -82,6 +76,10 @@ Mission instructions:
     - make mission instructions look like an email interface? 
     - Once we add the mission code, the mission stuff will be hidden in 'Explore' mode.
     - messages should be changed depending on which mission is chosen
+    - Some sort of completion marking, possibly on mission selection window
+        - <i class="fa-regular fa-square-check"></i> a checkmark
+        - would need localStorage for persistence
+        - if we record completion time, we'll need to add that.
 
 #############################################################################
 Merged view:
