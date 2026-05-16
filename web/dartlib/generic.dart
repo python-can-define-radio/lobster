@@ -72,6 +72,12 @@ class Mut {
     const Mut(this.mutated);
 }
 
+/// Metadata to mark something as reassigning either instance attributes.
+class Reassigns {
+    final List<String> reassigned;
+    const Reassigns(this.reassigned);
+}
+
 
 extension Scanner<T> on Stream<T> {
     Stream<S> scan<S>(S initial, S Function(S, T) combine) async* {

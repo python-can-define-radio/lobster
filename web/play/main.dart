@@ -13,19 +13,68 @@ import '../dartlib/htmlhelp.dart';
 
 
 
+class Consts {
+    static final msgRtn = "Return to mission selection";
+}
+
+class OkDialog {
+    final _dialogWrap = HTML.div();
+    bool _dispHasBeenCalled = false;
+
+    /// Return value is `true` if user clicked `OK`; `false` if user clicked `Cancel`.
+    /// Shows an alert if disp has not been called. (Would prefer to do that as a static 
+    /// compile-time check, but don't know how.)
+    @Eff("window.alert")
+    @Mut(["this._dialogWrap"])
+    Future<bool> showWith(String msg, [String? okText]) {
+        if (!_dispHasBeenCalled) {
+            window.alert("NOTE TO DEVELOPERS: You called `showWith`, but you haven't yet called `disp`. `showWith` won't have any effect if the HTML hasn't been attached to the document. Recommendation: use `disp` in `main` in the same location as the other `disp`s.");
+        }
+        final dialog = HTML.dialog()..className = "game-dialog";
+        dialog.innerText = "$msg \n\n";
+        final okButton = HTML.button()
+            ..textContent = okText ?? "OK"
+            ..classList.add('game-btn');
+        final completer = Completer<bool>();
+        okButton.onClick.listen((_) {
+            dialog.close();
+            completer.complete(true);
+        });
+
+        dialog.appendChild(okButton);
+        _dialogWrap.replaceChildren(dialog);
+        dialog.show();
+        return completer.future;
+    }
+    
+    @Reassigns(["this._dispHasBeenCalled"])
+    HTMLElement disp() {
+        _dispHasBeenCalled = true;
+        return _dialogWrap;
+    }
+}
+
+
 class OkCancelDialog {
     final _dialogWrap = HTML.div();
+    bool _dispHasBeenCalled = false;
 
-    /// Return value is `true` if user clicked `OK`; `false` if user clicked `Cancel`
+    /// Return value is `true` if user clicked `OK`; `false` if user clicked `Cancel`.
+    /// Shows an alert if disp has not been called. (Would prefer to do that as a static 
+    /// compile-time check, but don't know how.)
+    @Eff("window.alert")
     @Mut(["this._dialogWrap"])
-    Future<bool> showWith(String msg) {
+    Future<bool> showWith(String msg, [String? okText, String? cancelText]) {
+        if (!_dispHasBeenCalled) {
+            window.alert("NOTE TO DEVELOPERS: You called `showWith`, but you haven't yet called `disp`. `showWith` won't have any effect if the HTML hasn't been attached to the document. Recommendation: use `disp` in `main` in the same location as the other `disp`s.");
+        }
         final dialog = HTML.dialog()..className = "game-dialog";
         dialog.innerText = msg;
         final okButton = HTML.button()
-            ..textContent = 'OK'
+            ..textContent = okText ?? 'OK'
             ..classList.add('game-btn');
         final cancelButton = HTML.button()
-            ..textContent = 'Cancel'
+            ..textContent = cancelText ?? 'Cancel'
             ..classList.add('game-btn');
         final buttonRow = HTML.div()
             ..id = 'game-dialog-buttons'
@@ -45,7 +94,12 @@ class OkCancelDialog {
         dialog.show();
         return completer.future;
     }
-    HTMLElement disp() => _dialogWrap;
+    
+    @Reassigns(["this._dispHasBeenCalled"])
+    HTMLElement disp() {
+        _dispHasBeenCalled = true;
+        return _dialogWrap;
+    }
 }
 
 
@@ -165,6 +219,8 @@ class GC {
 
     @override
     int get hashCode => val.toInt();
+
+    bool operator >(GC other) => val > other.val;
 }
 
 @immutable
@@ -188,12 +244,13 @@ class Pos {
     @override
     int get hashCode => (x.val * 1e6 + y.val).toInt();
 
-    Result<bool, String> closeTo(Pos other, int minimumPrecision) {
+    /// true if the two positions are near each other.
+    Result<bool, String> near(Pos other, int minimumPrecision) {
         final precis = precision;
         if (precis == null) {
             return Failure("Invalid precision. (This is a bug in the program; there is nothing that you as the player can do about it.)");
         } else if (precis < minimumPrecision) {
-            return Failure("Your submitted coordinates were not sufficiently precise. Must enter at least ${precis * 2} digit grid.");
+            return Failure("Your submitted coordinates were not sufficiently precise.\nMust enter at least ${minimumPrecision * 2} digit grid.");
         } else if (precis == 5) {
             final xdiff = (x.val - other.x.val).abs();
             final ydiff = (y.val - other.y.val).abs();
@@ -202,8 +259,6 @@ class Pos {
             final xdiff = (x.val - (other.x.val/10)).abs();
             final ydiff = (y.val - (other.y.val/10)).abs();
             return Success(xdiff <= 1 && ydiff <= 1);
-        // } else if (precis == 3) {
-        //     return Success(xdiff <= 100 && ydiff <= 100);
         } else {
             return Failure("Invalid precision. (This is a bug in the program; there is nothing that you as the player can do about it.)");
         }
@@ -222,7 +277,6 @@ abstract class Drawable extends AbleToDraw {
 abstract class HasOwnCanv extends AbleToDraw {
     HTMLCanvasElement get canv;
 }
-
 
 @immutable
 class DirXY {
@@ -268,7 +322,6 @@ class DirXY {
         return "DirXY($horiz, $vert)";
     }
 }
-
 
 class PlayerPos {
     final Stream<DirXY> dirxyStm;
@@ -348,7 +401,6 @@ class PlayerHUD {
     }
 }
 
-
 class Avatar implements Drawable {
     final HTMLImageElement _avatarSheet;
     final Observable<DirXY> _dirxyObs;
@@ -411,8 +463,6 @@ class Avatar implements Drawable {
     @Mut(["ctx"])
     void draw(Cctx ctx, GridCC gridcc) {
         const size = 50;
-        // final x = canvWidth / 2 - size / 2;
-        // final y = canvHeight / 2 - size / 2;
         final row = _dxyToSlice(_dirxyObs.latestVal);
         _drawSlice(ctx, row, _cycle.latestVal, size, gridcc);
     }
@@ -442,7 +492,6 @@ class Reticle implements Drawable {
         ctx.globalAlpha = 1.0; // reset
     }
 }
-
 
 class CanvMLeft {
     final Cctx _ctx;
@@ -536,7 +585,6 @@ class CanvMRight {
     }
 }
 
-
 class Grid implements Drawable {
     final Observable<double> _scaleObs;
     Grid(this._scaleObs);
@@ -545,9 +593,9 @@ class Grid implements Drawable {
 
         /// Space between gridlines in meters
         final gridUnitSpcExponent = switch(_scaleObs.latestVal) {
-            <0.0099  => 3,
-            <0.099  => 2,
-            <0.99  => 1,
+            <0.02  => 3,
+            <0.2  => 2,
+            <2.0  => 1,
             _  => 0,
         };
 
@@ -574,31 +622,25 @@ class Grid implements Drawable {
         final charWidth = 0.3 / gridcc.scale;
         /// see note on charWidth
         final charHeight = 0.2 / gridcc.scale;
-
-        String lastDigits(GC gc) {
-            final numdig = (gridUnitSpcExponent + 2).clamp(2, 5);
-            return gc.asfivedig.substring(5 - numdig, 5);
-        }
         
         for (var x = xstart.val; x <= xstop.val; x += gridUnitSpc) {
             gridcc.drawLine(Pos(GC(x), ystart), Pos(GC(x), ystop), ctx);
             gridcc.fillText(
-                lastDigits(GC(x)),
-                Pos(GC(x - charWidth), ytext),
+                GC(x).asfivedig,
+                Pos(GC(x - charWidth*2.5), ytext),
                 ctx
             );
         }
         for (var y = ystart.val; y <= ystop.val; y += gridUnitSpc) {
             gridcc.drawLine(Pos(xstart, GC(y)), Pos(xstop, GC(y)), ctx);
             gridcc.fillText(
-                lastDigits(GC(y)),
+                GC(y).asfivedig,
                 Pos(xtext, GC(y - charHeight)),
                 ctx
             );
         }
     }
 }
-
 
 class SimpleOb implements Drawable {
     final Pos pos;
@@ -635,7 +677,6 @@ class SimpleOb implements Drawable {
 }
 
 typedef LOB = ({Pos source, Azimuth azimuth, Power rxpow});
-
 
 class LOBCol implements Drawable {
     final ImmuElem _gatheringLobsBtn;
@@ -719,7 +760,6 @@ class LOBCol implements Drawable {
             }
         });
 
-
         keydown
             .where((ev) => ev.code == "KeyG")
             .listen((_) => gLSCoLV.set(!gLSCoLV.latestVal));
@@ -770,21 +810,6 @@ class LOBCol implements Drawable {
         gridcc.drawLine(lob.source, dest, ctx);
     }
 
-/* 
-
-The following is a collection of tips to improve canvas performance.
-Pre-render similar primitives or repeating objects on an offscreen canvas
-
-If you find yourself repeating some of the same drawing operations on each animation frame, consider offloading them to an offscreen canvas. You can then render the offscreen image to your primary canvas as often as needed, without unnecessarily repeating the steps needed to generate it in the first place.
-
-myCanvas.offscreenCanvas = document.createElement("canvas");
-myCanvas.offscreenCanvas.width = myCanvas.width;
-myCanvas.offscreenCanvas.height = myCanvas.height;
-
-myCanvas.getContext("2d").drawImage(myCanvas.offScreenCanvas, 0, 0);
-*/
-
-
     /// Same as plain `draw()` but the dependencies are explicit.
     @Mut(["ctx"])
     static void drawStatic(Iterable<LOB> lobs, LOB? sellob, Cctx ctx, GridCC gridcc) {
@@ -805,7 +830,6 @@ myCanvas.getContext("2d").drawImage(myCanvas.offScreenCanvas, 0, 0);
     }
 }
 
-
 class Azimuth {
     final double sinresult;
     final double cosresult;
@@ -822,7 +846,6 @@ class Azimuth {
         return Azimuth(yd / dist, xd / dist);
     }
 }
-
 
 class Power {
     final double mW;
@@ -875,8 +898,40 @@ class Sim {
     }
 }
 
+class Loser {
+    static final GC m1LoseThres = GC(40100);
+    final OkDialog _dialog;
+    HTMLElement disp() => _dialog.disp();
+
+    Loser(this._dialog);
+    
+    /// On position stream events, check whether the y val is too high.
+    @Eff("window.open")
+    @factory
+    static Loser create(MissionLogic mlogic, Stream<Pos> p1posStm) {
+        final dialog = OkDialog();
+        final capStm = p1posStm
+            .where((p1pos) => isCapture(mlogic, p1pos))
+            .distinct(); /// without `distinct`, this triggers once per frame, which causes far too many dialogs
+
+        capStm.listen((cap) {
+            dialog
+                .showWith("You were captured by enemy scouts!", Consts.msgRtn)
+                .then((_) {
+                    window.open("..", "_self");
+                });
+        });
+        return Loser(dialog);
+    }
+
+    /// True if the mission is m1 and the player's y is too high.
+    static bool isCapture(MissionLogic mlogic, Pos p1pos) => 
+            (mlogic.mission == Mission.m1) && (p1pos.y > m1LoseThres);
+}
+
 enum Mission { explore, tutorial, m1 }
 
+@immutable
 class MissionLogic {
     final Mission mission;
     final Pos txpos;
@@ -909,9 +964,7 @@ class MissionLogic {
     }
 }
 
-
 class MissionUI {
-    final _dialog = OkCancelDialog();
     final MissionLogic mlogic;
 
     MissionUI(this.mlogic);
@@ -969,11 +1022,11 @@ class MissionUI {
     }
 
     Result<String, String> checkCoords(Pos pos) {
-        Result<String, String> successMsg(bool close) {
-            if (close) {
-                return Success("Correct!");
+        Result<String, String> successMsg(bool near) {
+            if (near) {
+                return Success("You successfully located the transmitter behind enemy lines!");
             } else {
-                return Failure("Those grid coordinates were incorrect. Try again. DEBUG: real coords are ${mlogic.txpos.x.val} ${mlogic.txpos.y.val}");
+                return Failure("Those grid coordinates were incorrect. Try again.");
             }
         }
         final int minimumPrecision;
@@ -983,14 +1036,15 @@ class MissionUI {
             minimumPrecision = 3; // We may later change this for other missions
         }
         return pos
-            .closeTo(mlogic.txpos, minimumPrecision)
-            .map((close) => successMsg(close))
+            .near(mlogic.txpos, minimumPrecision)
+            .map((near) => successMsg(near))
             .then((x) => flatten(x));
     }
 
     @Eff("window.open")
-    void _showAllowGoHome(String msg) {
-        _dialog.showWith(msg).then((response) {
+    @Mut(["dialog"])
+    static void _showAllowGoHome(String succmsg, OkCancelDialog dialog) {
+        dialog.showWith(succmsg, Consts.msgRtn, "Continue exploring").then((response) {
             if (response) {
                 window.open("..", "_self");
             }
@@ -998,20 +1052,22 @@ class MissionUI {
     }
 
     @Eff("window.open")
-    void _handleSubmit(String submission) {
+    @Mut(["dialog"])
+    void _handleSubmit(String submission, OkCancelDialog dialog) {
         final chk = parseSubmission(submission)
             .map((x) => checkCoords(x))
             .then((x) => flatten(x));
         switch(chk) {
             case Success(val: final succmsg):
-                _showAllowGoHome(succmsg);
+                _showAllowGoHome(succmsg, dialog);
             case Failure(val: final errmsg):
-                _dialog.showWith(errmsg);
+                dialog.showWith(errmsg);
         }
     }
 
     @Eff("window.open")
-    HTMLFormElement _form() {
+    HTMLElement _form() {
+        final dialog = OkCancelDialog();
         final form = HTML.form()..id = "submit-coords-form";
         final inpEl = HTMLInputElement()
             ..placeholder = "Enter grid coordinates";
@@ -1024,14 +1080,11 @@ class MissionUI {
             ..appendChild(subbtn);
         form.onSubmit.listen((e) {
             e.preventDefault();
-            Future.delayed(Duration(milliseconds: 1), () => _handleSubmit(inpEl.value));
+            _handleSubmit(inpEl.value, dialog);
         });
-        return form;
+        return HTML.div(children: [form, dialog.disp()]);
     }
-    /// The result of submitting the form
-    HTMLElement dispResult() => _dialog.disp();
 }
-
 
 HTMLElement assembleElems(CanvMLeft cmLife, CanvMRight cmLob, {required Iterable<HTMLElement> tabletChildren}) {
     final cmLobAndAssociated = HTML.div(
@@ -1043,7 +1096,6 @@ HTMLElement assembleElems(CanvMLeft cmLife, CanvMRight cmLob, {required Iterable
         children: [cmLife.disp(), cmLobAndAssociated]
     );
 }
-
 
 class Zoom {
     final Observable<double> scaleObs;
@@ -1110,7 +1162,6 @@ class Zoom {
         return StreamGroup.merge([t, f]);
     }
 }
-
 
 class Pan {
     final Observable<Pos> center;
@@ -1226,7 +1277,7 @@ class Messages {
                 ..id = "m1-message"
                 ..innerText = """The adversary's scouts are watching in force.
 
-                To avoid capture, stay behind the FLOT -- don't go any further North than grid 40100 northing.
+                To avoid capture, stay behind the FLOT -- don't go any further North than grid ${Loser.m1LoseThres.val} northing.
                 
                 Once you have determined the transmitter's grid location, send it to me using your tablet's submission form using either an 8 digit grid coordinate (within 10 meters) or a 10 digit grid coordinate (within 1 meter).""",
         ]);
@@ -1243,35 +1294,6 @@ class Messages {
 
     HTMLElement dispoverlay() => _overlay; 
 }
-
-/*
-TODO after releasing version 2
-@immutable
-class Objs implements HasOwnCanv {
-    @override
-    final HTMLCanvasElement canv;
-
-    // in create, use something like this:
-        final canv = HTML.canvas("life", w, h);
-        final ctx = canv.getContext('2d') as Cctx;
-        .drawInProgress(ctx, GridCC(1, playerInitPos, w, h));
-
-
-    @Mut(["ctx"])
-    void drawInProgress(Cctx ctx, GridCC gridcc) {
-        for (final obj in _objs.values) {
-            final xdiff = (obj.pos.x.val - gridcc.center.x.val).abs();
-            final ydiff = (obj.pos.y.val - gridcc.center.y.val).abs();
-            if (gridcc.scale < 0.05) {
-                return;
-            }
-            if (xdiff < (30 / gridcc.scale) && ydiff < (30 / gridcc.scale)) {
-                obj.draw(ctx, gridcc);
-            }
-        }
-    }
-
- */
 
 @immutable
 class Objs implements Drawable {
@@ -1338,7 +1360,6 @@ class Objs implements Drawable {
     }
 }
 
-
 class Road implements Drawable {
     Pos coloringCenter;
     HTMLImageElement img;
@@ -1382,7 +1403,6 @@ class Road implements Drawable {
         ctx.setLineDash(<JSNumber>[].toJS);
     }
 }
-
 
 /// Provides `Drawable`s to the left and right canvas according to 
 /// whether they are merged or unmerged.
@@ -1435,7 +1455,6 @@ class LeftRightM {
     HTMLElement disp() => _disp;
 }
 
-
 @Eff("*")
 void main() async {
     final keydown = document.body!.onKeyDown;
@@ -1461,6 +1480,7 @@ void main() async {
     final msgs = Messages.create(mlogic.mission == Mission.m1);
     final lrm = LeftRightM.create([road, avatar, bushes, t1], [lobc, grid], [reticle]); 
     final pan = Pan.create(cmLob.mevStm, p1.posObs, p1.posStm, zoom.scaleObs);
+    final loser = Loser.create(mlogic, p1.posStm);
     cmLife.start(p1.posStm, lrm.leftObs, lrm.isMergedStm);
     cmLob.start(p1.posStm, lrm.rightObs, lrm.isMergedStm, zoom.scaleObs, pan.center);
     switch(document.getElementById("gameroot")) {
@@ -1471,12 +1491,12 @@ void main() async {
                 lobc.dispInfo(),
                 lobc.dispCtl(),
                 mui.disp(),
-                mui.dispResult(),
                 zoom.disp(),
                 pan.disp(),
                 lrm.disp(),
                 msgs.dispMsgBtn(),
                 msgs.dispoverlay(),
+                loser.disp(),
             ])
         );
     }

@@ -23,8 +23,7 @@ R7. All indentation MUST be multiples of four spaces. You MUST ignore the Dart s
 Rules section 2:
 R11. With the exception of the disp family, methods MUST return objects that are notExtChg.
 R12. The disp family MUST be called only in the code location 'tabletChildren: [ ... ]', which is in `main()`.
-R13. All objects which are global MUST be neither mutable nor reassignable.
-R14. The only two global objects (other that functions and classes) MUST be canvWidth and canvHeight.
+R13. There MUST be no global variables other than function definitions and class definitions.
 R15. If a function mutates an object that is an argument/parameter of the function, that function MUST be annotated with the `Mut` metadata to indicate what it is mutating. Note that the `Mut` metadata is not needed if the object being mutated is declared in the function body.
 R16. If a function uses the `window` global JS object, it MUST be annotated with the `Eff` metadata and a string description of the side effect.
 R17. The `document` global JS object MUST only occur in the following places: (a) the `HTML` class, (b) `main()`.
@@ -32,7 +31,6 @@ R18. `draw` functions MUST NOT mutate or reassign any instance variables.
 R19. `draw` functions MAY mutate `ctx`.
 R20. All Streams MUST be broadcast streams.
 R21. `late` keyword MUST not be used.
-R22. All public instance variables MUST be notExtChg. The one exception to this rule is the Observable class's `_latestVal`.
-R23. All private instance variables (that is, those which begin with an underscore) MUST be either notExtChg or must have the type StreamController.
-
-Does the code follow these updated rules?
+R22. All instance variables MUST be notExtChg. The one exception to this rule is the Observable class's `_latestVal`.
+R23. All instance variables MUST be final. The one exception to this rule is the Observable class's `_latestVal`.
+R24. Instance variables MUST NOT have the type `StreamController`.

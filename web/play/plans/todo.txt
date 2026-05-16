@@ -2,8 +2,6 @@
 Next steps (overview) -- details for each below in same order
 
 1 week
-- Mission instructions (success)
-
 ----- Publish version 2 -----
 
 1 month:
@@ -15,6 +13,7 @@ Next steps (overview) -- details for each below in same order
 - Ground objects
 - Mission instructions (other)
 - Merged view
+- Setting page
 
 3 months:
 - Transmitter
@@ -28,10 +27,7 @@ Next steps (overview) -- details for each below in same order
 ##########                         1 week                          ##########
 #############################################################################
 #############################################################################
-Mission instructions:
-    Success:
-    - need popup saying "You've been captured!" if you cross the FLOT.
-      Button: restart mission.
+Publish version 2
 
 #############################################################################
 #############################################################################
@@ -40,6 +36,42 @@ Mission instructions:
 #############################################################################
 - Efficiency
     - attempt multiple stacked canvasses as per MDN; see whether it helps on J computer
+
+The following is a collection of tips to improve canvas performance.
+Pre-render similar primitives or repeating objects on an offscreen canvas
+
+If you find yourself repeating some of the same drawing operations on each animation frame, consider offloading them to an offscreen canvas. You can then render the offscreen image to your primary canvas as often as needed, without unnecessarily repeating the steps needed to generate it in the first place.
+
+myCanvas.offscreenCanvas = document.createElement("canvas");
+myCanvas.offscreenCanvas.width = myCanvas.width;
+myCanvas.offscreenCanvas.height = myCanvas.height;
+
+myCanvas.getContext("2d").drawImage(myCanvas.offScreenCanvas, 0, 0);
+
+@immutable
+class Objs implements HasOwnCanv {
+    @override
+    final HTMLCanvasElement canv;
+
+    // in create, use something like this:
+        final canv = HTML.canvas("life", w, h);
+        final ctx = canv.getContext('2d') as Cctx;
+        .drawInProgress(ctx, GridCC(1, playerInitPos, w, h));
+
+
+    @Mut(["ctx"])
+    void drawInProgress(Cctx ctx, GridCC gridcc) {
+        for (final obj in _objs.values) {
+            final xdiff = (obj.pos.x.val - gridcc.center.x.val).abs();
+            final ydiff = (obj.pos.y.val - gridcc.center.y.val).abs();
+            if (gridcc.scale < 0.05) {
+                return;
+            }
+            if (xdiff < (30 / gridcc.scale) && ydiff < (30 / gridcc.scale)) {
+                obj.draw(ctx, gridcc);
+            }
+        }
+    }
 
 #############################################################################
 Selected lob:
@@ -87,6 +119,11 @@ Merged view:
         - we need to stop using global canvWidth and canvHeight and instead have instance vars attached to CanvM
     - Left canvs should be something more realistic.
 
+#############################################################################
+Settings page:
+    - potentially a setting to change all window gc edge markers to 5 digits
+    - other settings?
+    
 #############################################################################
 #############################################################################
 ##########                        3 months                         ##########
