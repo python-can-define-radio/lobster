@@ -2,24 +2,22 @@
 Next steps (overview) -- details for each below in same order
 
 1 week
------ Publish version 2 -----
+- sound fx
 
 1 month:
 - Efficiency
 - Selected lob
 - Compass
 - Tutorial 
-- Grid lines modification
 - Ground objects
 - Mission instructions (other)
-- Merged view
 - Setting page
 
 3 months:
 - Transmitter
 - Credits
 - EM Physics
-- Realistic Location
+- Realistic Location/Map
 - Art
 
 #############################################################################
@@ -27,7 +25,8 @@ Next steps (overview) -- details for each below in same order
 ##########                         1 week                          ##########
 #############################################################################
 #############################################################################
-Publish version 2
+Sound FX:
+    - possibly add a sound for incoming messages/walking
 
 #############################################################################
 #############################################################################
@@ -52,12 +51,10 @@ myCanvas.getContext("2d").drawImage(myCanvas.offScreenCanvas, 0, 0);
 class Objs implements HasOwnCanv {
     @override
     final HTMLCanvasElement canv;
-
     // in create, use something like this:
         final canv = HTML.canvas("life", w, h);
         final ctx = canv.getContext('2d') as Cctx;
         .drawInProgress(ctx, GridCC(1, playerInitPos, w, h));
-
 
     @Mut(["ctx"])
     void drawInProgress(Cctx ctx, GridCC gridcc) {
@@ -65,13 +62,9 @@ class Objs implements HasOwnCanv {
             final xdiff = (obj.pos.x.val - gridcc.center.x.val).abs();
             final ydiff = (obj.pos.y.val - gridcc.center.y.val).abs();
             if (gridcc.scale < 0.05) {
-                return;
-            }
+                return;}
             if (xdiff < (30 / gridcc.scale) && ydiff < (30 / gridcc.scale)) {
-                obj.draw(ctx, gridcc);
-            }
-        }
-    }
+                obj.draw(ctx, gridcc);}}}
 
 #############################################################################
 Selected lob:
@@ -88,14 +81,6 @@ Tutorial:
     - Add a full tutorial to introduce UI, controls, and have them submit a grid coordinate (no constraints in the tutorial; they can walk right up to the transmitter)
 
 #############################################################################
-Grid lines modification:
-    - Note from conversation with coworker:
-    - grid lines are typically 1 km apart
-    - Discuss:
-        - Could have a checkbox option (maybe in a new settings menu on the tablet) to
-        choose between gridlines on 1km only versus gridlines that adjust based on zoom level (current behavior)
-
-#############################################################################
 Ground objects:
     - Consider procedurally generated ground colors discuss whether on both or just left canvas
     - bushes should not be drawn on the roads
@@ -103,21 +88,9 @@ Ground objects:
 #############################################################################
 Mission instructions:
     Other:
-    - possibly add a sound for incoming messages
-    - when you submit your grid coordinates it adds a sent message on this page
-    - make mission instructions look like an email interface? 
-    - Once we add the mission code, the mission stuff will be hidden in 'Explore' mode.
+    - make mission instructions look like an email interface/ messaging app? 
+        - when you submit your grid coordinates it adds a sent message on this page
     - messages should be changed depending on which mission is chosen
-    - Some sort of completion marking, possibly on mission selection window
-        - <i class="fa-regular fa-square-check"></i> a checkmark
-        - would need localStorage for persistence
-        - if we record completion time, we'll need to add that.
-
-#############################################################################
-Merged view:
-    - handle canv size change when merged. 
-        - we need to stop using global canvWidth and canvHeight and instead have instance vars attached to CanvM
-    - Left canvs should be something more realistic.
 
 #############################################################################
 Settings page:
@@ -140,10 +113,10 @@ Credits:
 EM Physics:
     - Reflections, refractions, elevation
 
-
 #############################################################################
-Realistic Location:
+Realistic Location/Map:
 - consider picking a flat location in real world and use those coords?
+- Left canvs should be something more realistic.
 
 #############################################################################
 Art:
@@ -170,6 +143,10 @@ Tiles:
         //         gridcc.drawSlice(coloringCenter + Pos(GC(x), GC(y)), img, ctx);
         //     }
         // }
+
+
+
+
 
 
 https://opengameart.org/content/ground
