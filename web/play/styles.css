@@ -285,3 +285,13 @@ h2 {
     margin-left: 3px;
     margin-right: 3px;
 }
+
+@keyframes msg-strobe {
+    0% { background-color: rgba(255, 255, 255, 0.08); }
+    50% { background-color: rgba(255, 0, 0, 0.95); }
+    100% { background-color: rgba(255, 255, 255, 0.08); }
+}
+
+.msgs-strobe {
+    animation: msg-strobe 0.7s infinite;
+}

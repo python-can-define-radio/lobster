@@ -943,8 +943,14 @@ class MissionLogic {
     static MissionLogic create(String href) {
         final mission = _parseMission(href);
         final random = Random();
-        final txpos = Pos(GC(69975 + random.nextInt(50)), GC(40150));
-        return MissionLogic(mission, txpos);
+        final Pos txpos;
+        txpos = switch (mission) {
+            Mission.explore => Pos(GC(70020), GC(40090)),
+            Mission.m1 => Pos(GC(69975 + random.nextInt(50)), GC(40150)),
+            Mission.tutorial => Pos(GC(70010), GC(40100)),
+        };
+
+return MissionLogic(mission, txpos);
     }
 
     static Mission _parseMission(String href) {
@@ -1059,11 +1065,14 @@ class MissionUI {
             .then((x) => flatten(x));
         switch(chk) {
             case Success(val: final succmsg):
+                markMissionComplete(mlogic.mission);
                 _showAllowGoHome(succmsg, dialog);
             case Failure(val: final errmsg):
                 dialog.showWith(errmsg);
         }
     }
+
+    static void markMissionComplete(Mission mission) { window.localStorage.setItem("lobster_completed_${mission.name}", "true"); }
 
     @Eff("window.open")
     HTMLElement _form() {
@@ -1223,7 +1232,16 @@ class Messages {
         backBtnClick.listen((_) => shownSC.add(false));
         incmsgSC.add(true);
         shownSC.add(false);
+        final notifAudio = HTMLAudioElement()
+            ..src = "../assets/game_sounds/inc_message.wav"
+            ..loop = true;
+
+        Future<void>.delayed(Duration(seconds: 4), () {
+            notifAudio.play();
+        });
         msgBtn.onClick.listen((_) {
+            notifAudio.pause();
+            notifAudio.currentTime = 0;
             shownSC.add(true);
             incmsgSC.add(false);
         });
@@ -1248,11 +1266,13 @@ class Messages {
                 messagetext.classList.add("fa-envelope");
                 messagetext.classList.remove("fa-envelope-open");
                 msgbtn.classList.add("msgs-unread");
+                msgbtn.classList.add("msgs-strobe");
             }
             else {
                 messagetext.classList.add("fa-envelope-open");
                 messagetext.classList.remove("fa-envelope");
                 msgbtn.classList.remove("msgs-unread");
+                msgbtn.classList.remove("msgs-strobe");
             }
         });
 
@@ -1362,16 +1382,8 @@ class Objs implements Drawable {
 
 class Road implements Drawable {
     Pos coloringCenter;
-    HTMLImageElement img;
 
-    Road(this.coloringCenter, this.img);
-
-    @Eff("http-req")
-    @factory
-    static Future<Road> create(Pos coloringCenter) async {
-        final img = await imageload("../assets/groundtiles.png");
-        return Road(coloringCenter, img);
-    }
+    Road(this.coloringCenter);
 
     @override
     void draw(Cctx ctx, GridCC gridcc) {
@@ -1455,6 +1467,28 @@ class LeftRightM {
     HTMLElement disp() => _disp;
 }
 
+class WalkSfx {
+    final HTMLAudioElement _audio;
+    bool _playing = false;
+
+    WalkSfx(this._audio);
+
+    void update(bool isMoving, bool isRunning) {
+        final rate = isRunning ? 1.6 : 1.0;
+        _audio.playbackRate = rate;
+
+        if (isMoving && !_playing) {
+            _audio.loop = true;
+            _audio.play();
+            _playing = true;
+        } else if (!isMoving && _playing) {
+            _audio.pause();
+            _audio.currentTime = 0;
+            _playing = false;
+        }
+    }
+}
+
 @Eff("*")
 void main() async {
     final keydown = document.body!.onKeyDown;
@@ -1471,7 +1505,7 @@ void main() async {
     final bushes = await Objs.create(p1.posObs.latestVal, canvLeftWH.w, canvLeftWH.h);
     final avatar = await Avatar.create(p1.dirxyStm, p1.runningObs, p1.posObs);
     final reticle = Reticle(p1.posObs);
-    final road = await Road.create(p1.posObs.latestVal);
+    final road = Road(p1.posObs.latestVal);
     final zoom = Zoom.create();
     final grid = Grid(zoom.scaleObs);
     final cmLife = CanvMLeft.create(canvLeftWH.w, canvLeftWH.h, []);
@@ -1481,6 +1515,9 @@ void main() async {
     final lrm = LeftRightM.create([road, avatar, bushes, t1], [lobc, grid], [reticle]); 
     final pan = Pan.create(cmLob.mevStm, p1.posObs, p1.posStm, zoom.scaleObs);
     final loser = Loser.create(mlogic, p1.posStm);
+    final walkAudio = HTMLAudioElement()..src = "../assets/game_sounds/walk_grass.wav";
+    final walkSfx = WalkSfx(walkAudio);
+    p1.dirxyStm.listen((d) { walkSfx.update(!d.isZero, p1.runningObs.latestVal); });
     cmLife.start(p1.posStm, lrm.leftObs, lrm.isMergedStm);
     cmLob.start(p1.posStm, lrm.rightObs, lrm.isMergedStm, zoom.scaleObs, pan.center);
     switch(document.getElementById("gameroot")) {

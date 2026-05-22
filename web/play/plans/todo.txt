@@ -153,3 +153,9 @@ https://opengameart.org/content/ground
 https://opengameart.org/content/45-high-res-ground-texture-photos
 https://opengameart.org/content/ground-tiles-1
 https://opengameart.org/content/ground-sprite-pack
+
+possible avatar spritesheets
+https://opengameart.org/content/24x32-peppercarrot-characters
+
+possible settings page music
+https://opengameart.org/content/bossa-nova

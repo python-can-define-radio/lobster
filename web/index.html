@@ -56,5 +56,7 @@
         <li><a href="play/?mission=m1">Mission 1: Find the transmitter behind enemy lines</a></li>
         <!-- <li><a href="play/?mission=m2">Mission 2: Do the other thing</a></li> -->
     </ul>
+    <button class = "game-btn" onclick="localStorage.clear(); location.reload();">Reset Progress</button>
+    <script>document.querySelectorAll("a").forEach(a => { const m = a.href.includes("mission=") ? new URL(a.href).searchParams.get("mission") : null; if (!m) return; const done = localStorage.getItem("lobster_completed_" + m) === "true"; if (done) { const s = document.createElement("span"); s.textContent = " ✓"; s.style.color = "limegreen"; s.style.marginLeft = "8px"; a.appendChild(s); } });</script>
 </body>
 </html>
