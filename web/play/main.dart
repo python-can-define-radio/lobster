@@ -1236,7 +1236,7 @@ class Messages {
             ..src = "../assets/game_sounds/inc_message.wav"
             ..loop = true;
 
-        Future<void>.delayed(Duration(seconds: 4), () {
+        Future<void>.delayed(Duration(seconds: 2), () {
             notifAudio.play();
         });
         msgBtn.onClick.listen((_) {

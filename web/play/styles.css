@@ -295,3 +295,38 @@ h2 {
 .msgs-strobe {
     animation: msg-strobe 0.7s infinite;
 }
+
+#settings-menu {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 9999;
+}
+
+#settings-menu summary {
+    list-style: none;
+    cursor: pointer;
+}
+
+#settings-menu summary::-webkit-details-marker {
+    display: none;
+}
+
+.settings-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 8px;
+    background: rgba(0,0,0,0.8);
+}
+
+.settings-panel a {
+    color: white;
+    text-decoration: none;
+}
+
+.summary {
+    border: none;
+    text-align: center;
+}

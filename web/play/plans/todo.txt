@@ -3,6 +3,7 @@ Next steps (overview) -- details for each below in same order
 
 1 week
 - sound fx
+    - inc message sound affect is still sometimes playing after messages have been checked
 
 1 month:
 - Efficiency
@@ -11,7 +12,7 @@ Next steps (overview) -- details for each below in same order
 - Tutorial 
 - Ground objects
 - Mission instructions (other)
-- Setting page
+- Settings expandable
 
 3 months:
 - Transmitter
@@ -93,9 +94,10 @@ Mission instructions:
     - messages should be changed depending on which mission is chosen
 
 #############################################################################
-Settings page:
+Settings expandable:
     - potentially a setting to change all window gc edge markers to 5 digits
     - other settings?
+    - turn on background music
     
 #############################################################################
 #############################################################################
@@ -126,11 +128,6 @@ Art:
         - find a student who is interested
         - tell PapaB to stop shamming (ha)
     - Needed assets:
-        - sooner:
-        - Avatar we used a 1024 x 1024 spritesheet would be good if that didnt have to change
-        - transmitter
-
-        - slightly less soon:
         - Multiple avatar choices
         - tree
         - building
@@ -159,3 +156,12 @@ https://opengameart.org/content/24x32-peppercarrot-characters
 
 possible settings page music
 https://opengameart.org/content/bossa-nova
+
+possible truck to put the tx on it is car7.png
+https://opengameart.org/content/cars-trucks-and-a-limo
+
+possible jeep to put the tx on its a spritesheet so we can animate it
+https://opengameart.org/content/pixel-art-jeep
+
+possible sound to use for the car7
+https://opengameart.org/content/engine-loop-heavy-vehicletank
