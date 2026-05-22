@@ -17,6 +17,10 @@ class Consts {
     static final msgRtn = "Return to mission selection";
 }
 
+mixin Displayable {
+    Box<HTMLElement> get disp;
+}
+
 class OkDialog {
     final _dialogWrap = HTML.div();
     bool _dispHasBeenCalled = false;
@@ -386,18 +390,19 @@ class PlayerPos {
     }
 }
 
-class PlayerHUD {
-    final Stream<Pos> _posStm;
-    PlayerHUD(this._posStm);
-    HTMLDivElement disp() {
+class PlayerHUD with Displayable {
+    @override
+    final Box<HTMLElement> disp;
+    PlayerHUD(this.disp);
+    static PlayerHUD create(Stream<Pos> posStm) {
         final posEl = HTML.div()..id = "player-pos";
-        _posStm.listen((pos) =>
+        posStm.listen((pos) =>
             posEl.innerText =
                 "grid: 55P DE "
                 "${pos.x.asfivedig} "
                 "${pos.y.asfivedig}"
         );
-        return posEl;
+        return PlayerHUD(Box(posEl));
     }
 }
 
@@ -497,9 +502,9 @@ class CanvMLeft {
     final Cctx _ctx;
     final int _w;
     final int _h;
-    final HTMLElement _disp;
+    final HTMLElement dispMut; /// must remain mutable so that it can be hidden
 
-    CanvMLeft(this._ctx, this._w, this._h, this._disp);
+    CanvMLeft(this._ctx, this._w, this._h, this.dispMut);
 
     @factory
     static CanvMLeft create(int w, int h, Iterable<HTMLCanvasElement> stackedCanvs) {
@@ -520,14 +525,12 @@ class CanvMLeft {
         });
         isMergedStm.listen((isMerged) {
             if (isMerged) {
-                _disp.classList.add("hidden");
+                dispMut.classList.add("hidden");
             } else {
-                _disp.classList.remove("hidden");
+                dispMut.classList.remove("hidden");
             }
         });
     }
-
-    HTMLElement disp() => _disp;
 
     @Mut(["ctx"])
     static void _frameUpdate(Pos p1pos, Cctx ctx, int w, int h, Iterable<Drawable> drawItems) {
@@ -540,14 +543,16 @@ class CanvMLeft {
     }
 }
 
-class CanvMRight {
-    final HTMLCanvasElement _canv;
+class CanvMRight with Displayable {
+    @override
+    final Box<HTMLElement> disp;
+    final Cctx _ctx;
     final Stream<MouseEvent> click;
     final Stream<MEv> mevStm;
     final int w;
     final int h;
 
-    CanvMRight(this._canv, this.click, this.mevStm, this.w, this.h);
+    CanvMRight(this.disp, this._ctx, this.click, this.mevStm, this.w, this.h);
     
     @factory
     static CanvMRight create(int w, int h, Stream<MouseEvent> docMouseUp) {
@@ -555,25 +560,17 @@ class CanvMRight {
         /// as per AI recommendation, the mouseUp should be from the doc
         /// in case the cursor leaves the canvas while mouse is down
         final mevStm = makeMouseMoveStm(canv.onMouseDown, canv.onMouseMove, docMouseUp);
-        return CanvMRight(canv, canv.onClick, mevStm, w, h);
+        final ctx = canv.getContext('2d') as Cctx;
+        final d = Box<HTMLElement>(HTML.div(className: "hudwrap", children: [canv]));
+        return CanvMRight(d, ctx, canv.onClick, mevStm, w, h);
     }
 
     /// Start drawing on p1PosStm events
     void start(Stream<Pos> p1PosStm, Observable<ImmuList<Drawable>> drawItemsObs, Stream<bool> isMergedStm, Observable<double> scaleObs, Observable<Pos> panCenter) {
-        final ctx = _canv.getContext('2d') as Cctx;
         p1PosStm.listen((p1pos) {
-            _frameUpdate(p1pos, panCenter.latestVal, ctx, w, h, scaleObs.latestVal, drawItemsObs.latestVal);
-        });
-        isMergedStm.listen((isMerged) {
-            if (isMerged) {
-                print("Would set canv width and height larger here");
-            } else {
-                print("opposite");
-            }
+            _frameUpdate(p1pos, panCenter.latestVal, _ctx, w, h, scaleObs.latestVal, drawItemsObs.latestVal);
         });
     }
-
-    ImmuElem disp() => ImmuElem(HTML.div(className: "hudwrap", children: [_canv]));
 
     @Mut(["ctx"])
     static void _frameUpdate(Pos p1pos, Pos panCenter, Cctx ctx, int w, int h, double scale, Iterable<Drawable> drawItems) {
@@ -678,23 +675,31 @@ class SimpleOb implements Drawable {
 
 typedef LOB = ({Pos source, Azimuth azimuth, Power rxpow});
 
-class LOBCol implements Drawable {
-    final ImmuElem _gatheringLobsBtn;
-    final ImmuElem _clearBtn;
-    final Stream<ImmuList<LOB>> _lobsStm;
+class LOBCol with Displayable implements Drawable {
+    @override
+    final Box<HTMLElement> disp;
     final Observable<ImmuList<LOB>> _lobs;
     /// Selected LOB
     final Observable<LOB?> _sellob;
 
-    LOBCol(this._gatheringLobsBtn, this._clearBtn, this._lobsStm, this._lobs, this._sellob);
+    LOBCol(this.disp, this._lobs, this._sellob);
 
     @factory
     static LOBCol create(KbStm keydown, Stream<LOB> univLobs, Stream<MouseEvent> canvclick, Observable<Pos> center, Observable<double> scaleObs) {
-        final (clear, clearBtn) = _configClearing(keydown);
-        final (lobsStm, gatheringLobsBtn) = _makeLobStream(clear, keydown, univLobs);
+        final (lobsStm, lobsCtlUI) = _makeLobStreamAndUI(keydown, univLobs);
         final lobs = Observable(ImmuList<LOB>([]), lobsStm);
         final sellob = _configChosenLOB(lobs, canvclick, center, scaleObs);
-        return LOBCol(gatheringLobsBtn, clearBtn, lobsStm, lobs, sellob);
+        final disp = Box<HTMLElement>(HTML.div(
+            children: [makeInfo(lobsStm)],
+            ichildren: [lobsCtlUI]
+        ));
+        return LOBCol(disp, lobs, sellob);
+    }
+
+    static HTMLDivElement makeInfo(Stream<ImmuList<LOB>> lobsStm) {
+        final lobPowEl = HTML.div()..id = "lob-power";
+        lobsStm.listen((lobs) => lobPowEl.innerText = _fmtpow(lobs.values.lastOrNull));
+        return lobPowEl;
     }
 
     static Observable<LOB?> _configChosenLOB(Observable<ImmuList<LOB>> lobs, Stream<MouseEvent> canvclick, Observable<Pos> center, Observable<double> scaleObs) {
@@ -725,77 +730,79 @@ class LOBCol implements Drawable {
     
     /// Returns a stream and the clear button.
     /// Events in the stream (both clicks and keypresses) should cause a clear.
-    static (Stream<Object>, ImmuElem) _configClearing(KbStm keydown) {
+    static (Stream<Object>, Box<HTMLElement>) _makeClear(KbStm keydown) {
         final cDown = keydown.where((ev) => ev.code == "KeyC").asBroadcastStream();
         final cbtn = HTML.button()
             ..addFlicker(cDown)
             ..id = "clear-btn"
             ..className = "game-btn"
             ..innerText = "Clear LOBs [ C ]";
-        return (StreamGroup.merge([cDown, cbtn.onClick]), ImmuElem(cbtn));
+        return (StreamGroup.merge([cDown, cbtn.onClick]), Box(cbtn));
+    }
+
+    /// Make Gathering LOBs button and label text.
+    /// Also return an observable which is true if the player is currently gathering LOBs.
+    static (Observable<bool>, Box<HTMLElement>) _makeGL(KbStm keydown) {
+        /// Gathering Lobs SCoLV: false means we are ignoring incoming lobs.
+        final isGathSCoLV = SCoLV.create(true);
+        final playicon = HTML.p();
+        final gatheringLobsBtn = HTML.button()..id = "lob-btn"..className = "game-btn"
+            ..appendChild(playicon);
+
+        isGathSCoLV.stream.listen((isGath) {
+            const sharedTextClasses = "fa-solid msgs-text";
+            if (isGath) {
+                playicon.className = "$sharedTextClasses fa-stop col-red";
+            } else {
+                playicon.className = "$sharedTextClasses fa-play";
+            }
+        });
+
+        /// Trigger so the initial icon appears
+        isGathSCoLV.set(true);
+
+        /// toggle whether player is gathering
+        keydown
+            .where((ev) => ev.code == "KeyG")
+            .listen((_) => isGathSCoLV.set(!isGathSCoLV.latestVal));
+        gatheringLobsBtn.onClick.listen((_) => isGathSCoLV.set(!isGathSCoLV.latestVal));
+        
+        final lobsBtnWithText = HTML.div(id: "lobs-btn-with-text", children: [
+            HTML.span()..innerText = "Gathering LOBs [ G ] ", gatheringLobsBtn
+        ]);
+        return (Observable(true, isGathSCoLV.stream), Box(lobsBtnWithText));
     }
 
     /// Create a stream of the lobs saved on the simulated DFing equipment,
     /// not to be confused with the stream of lobs coming from the universe.
-    /// Also create the checkbox which controls whether the user is gathering lobs.
-    static (Stream<ImmuList<LOB>>, ImmuElem) _makeLobStream(
-            Stream<Object> clear, KbStm keydown, Stream<LOB> univLobs) {
-        /// Gathering Lobs SCoLV
-        final gLSCoLV = SCoLV.create(true);
-        final playtext = HTML.p()
-            ..className = "fa-solid fa-stop msgs-text col-red";
-        final gatheringLobsBtn = HTML.button()..id = "lob-btn"..className = "game-btn"
-            ..appendChild(playtext);
+    /// Also create the elem which controls whether the user is gathering lobs.
+    static (Stream<ImmuList<LOB>>, Box<HTMLElement>) _makeLobStreamAndUI(
+            KbStm keydown, Stream<LOB> univLobs) {
 
-        gLSCoLV.stream.listen((play) {
-        if (play) {
-                playtext.classList.add("fa-stop");
-                playtext.classList.remove("fa-play");
-                playtext.classList.add("col-red");
-            }
-            else {
-                playtext.classList.add("fa-play");
-                playtext.classList.remove("fa-stop");
-                playtext.classList.remove("col-red");
-            }
-        });
+        final (isGathObs, gathUI) = _makeGL(keydown);
+        final (clearStm, clearBtn) = _makeClear(keydown);
+        final lobsCtlUI = Box<HTMLElement>(HTML.div(ichildren: [clearBtn, gathUI]));
 
-        keydown
-            .where((ev) => ev.code == "KeyG")
-            .listen((_) => gLSCoLV.set(!gLSCoLV.latestVal));
-        gatheringLobsBtn.onClick.listen((_) => gLSCoLV.set(!gLSCoLV.latestVal));
+        Stream<ImmuList<LOB>> makeLobsStm() {
+            final curlobs = SCoLV.create(ImmuList<LOB>([]));
+            univLobs
+                .where((_) => isGathObs.latestVal)
+                .listen((lob) {
+                    curlobs.set(curlobs.latestVal.followedBy([lob]));
+                });
 
-        final filtlobs = univLobs.where((_) => gLSCoLV.latestVal);
-        
-        final curlobs = SCoLV.create(ImmuList<LOB>([]));
-        filtlobs.listen((lob) {
-            curlobs.set(curlobs.latestVal.followedBy([lob]));
-        });
-        clear.listen((_) {
-            curlobs.set(ImmuList([]));
-        });
-        
-        return (curlobs.stream, ImmuElem(gatheringLobsBtn));
+            clearStm.listen((_) {
+                curlobs.set(ImmuList([]));
+            });
+            return curlobs.stream;
+        }
+
+        return (makeLobsStm(), lobsCtlUI);
     }
 
     static String _fmtpow(LOB? lob) {
         final fm = lob?.rxpow.dBm.toStringAsFixed(1);
         return "LOB power: ${fm ?? "__"} dBm\n";
-    }
-
-    HTMLDivElement dispInfo() {
-        final lobPowEl = HTML.div()..id = "lob-power";
-        _lobsStm.listen((lobs) => lobPowEl.innerText = _fmtpow(lobs.values.lastOrNull));
-        return lobPowEl;
-    }
-
-    HTMLDivElement dispCtl() {
-        final globtext = ImmuElem(HTML.span()..innerText = "Gathering LOBs [ G ] ");
-        final lobsBtnWithText = ImmuElem(HTML.div(id: "lobs-btn-with-text", ichildren: [
-            globtext,
-            _gatheringLobsBtn,
-        ]));
-        return HTML.div(ichildren: [_clearBtn, lobsBtnWithText]);
     }
 
     @Mut(["ctx"])
@@ -970,18 +977,25 @@ return MissionLogic(mission, txpos);
     }
 }
 
-class MissionUI {
+class MissionUI with Displayable{
     final MissionLogic mlogic;
+    @override
+    final Box<HTMLElement> disp;
 
-    MissionUI(this.mlogic);
+    MissionUI(this.mlogic, this.disp);
 
+    @factory
     @Eff("window.open")
-    HTMLElement disp() => 
-        switch (mlogic.mission) {
-            Mission.explore =>  HTML.div(),
-            Mission.tutorial => _form(),
-            Mission.m1 => _form(),
-        };
+    static MissionUI create(MissionLogic mlogic) {
+        // final d = switch (mlogic.mission) {
+        //     Mission.explore =>  HTML.div(),
+        //     Mission.tutorial => _form(),
+        //     Mission.m1 => _form(),
+        // };
+        final disp = HTML.div(); // TODO
+        return MissionUI(mlogic, Box(disp));
+    }
+
         
     static Result<Pos, String> parseSubmission(String submission) {
         // final errLen = "Grid coordinates must be entered as 4, 6, 8, or 10 digit grid, according to the mission requirements.\nExample 10 digit grid: 12345 45678";
@@ -1095,29 +1109,30 @@ class MissionUI {
     }
 }
 
-HTMLElement assembleElems(CanvMLeft cmLife, CanvMRight cmLob, {required Iterable<HTMLElement> tabletChildren}) {
+HTMLElement assembleElems(CanvMLeft cmLife, CanvMRight cmLob, {required Iterable<Displayable> tabletChildren}) {
     final cmLobAndAssociated = HTML.div(
         className: "cmlobparent",
-        ichildren: [cmLob.disp()].followedBy(tabletChildren.map((el) => ImmuElem(el)))
+        ichildren: [cmLob.disp].followedBy(tabletChildren.map((el) => el.disp))
     );
     return HTML.div(
         id: "two-canvasses",
-        children: [cmLife.disp(), cmLobAndAssociated]
+        children: [cmLife.dispMut, cmLobAndAssociated]
     );
 }
 
-class Zoom {
+class Zoom with Displayable {
     final Observable<double> scaleObs;
-    final HTMLElement _dispElem;
+    @override
+    final Box<HTMLElement> disp;
 
-    Zoom(this.scaleObs, this._dispElem);
+    Zoom(this.scaleObs, this.disp);
     
     @factory
     static Zoom create() {
         const initzoom = 1.0;
         final (elem, inoutstm) = makePlusMinus();
         final scaleObs = Observable(initzoom, makeScale(initzoom, inoutstm));
-        return Zoom(scaleObs, elem);
+        return Zoom(scaleObs, Box(elem));
     }
 
     /// Return a stream of the current zoom level.
@@ -1135,8 +1150,6 @@ class Zoom {
               max(prev / 2, 0.005),
         );
     }
-
-    HTMLElement disp() => _dispElem;
     
     static (HTMLElement, Stream<bool>) makePlusMinus() {
         final zoomintext = HTML.p()
@@ -1215,19 +1228,22 @@ class Pan {
     HTMLElement disp() => _resetBtn;
 }
 
-class Messages {
-    final HTMLElement _msgBtn;
-    final HTMLElement _overlay;
+class Messages with Displayable{
+    @override
+    final Box<HTMLElement> disp;
 
-    Messages(this._msgBtn, this._overlay);
+    Messages(this.disp);
 
     @factory
-    static Messages create(bool msgBtnVisible) {
+    static Messages create(MissionLogic mlogic) {
+        if (mlogic.mission == Mission.explore) {
+            return Messages(Box(HTML.div()));  /// Explore doesn't have messages
+        }
         /// True if there is an unread message
         final incmsgSC = StreamController<bool>.broadcast();
         /// True if the messages overlay is shown
         final shownSC = StreamController<bool>.broadcast(); 
-        final msgBtn = _makeMsgBtn(incmsgSC.stream, msgBtnVisible);
+        final msgBtn = _makeMsgBtn(incmsgSC.stream);
         final (overlay, backBtnClick) = _makeOverlay(shownSC.stream);
         backBtnClick.listen((_) => shownSC.add(false));
         incmsgSC.add(true);
@@ -1245,10 +1261,11 @@ class Messages {
             shownSC.add(true);
             incmsgSC.add(false);
         });
-        return Messages(msgBtn, overlay);
+        final d = HTML.div(children: [msgBtn, overlay]);
+        return Messages(Box(d));
     }
     
-    static HTMLElement _makeMsgBtn(Stream<bool> incMsgStm, bool msgBtnVisible) {
+    static HTMLElement _makeMsgBtn(Stream<bool> incMsgStm) {
         final messagetext = HTML.p()
             ..className = "fa-regular fa-2x msgs-text";
 
@@ -1256,10 +1273,6 @@ class Messages {
             ..className = "game-btn msgs-position"
             ..title = "Messages"
             ..appendChild(messagetext);
-
-        if (!msgBtnVisible) {
-            msgbtn.classList.add("hidden");
-        }
 
         incMsgStm.listen((incMsg) {
             if (incMsg) {
@@ -1278,8 +1291,6 @@ class Messages {
 
         return msgbtn;
     }
-
-    HTMLElement dispMsgBtn() => _msgBtn;
 
     static (HTMLElement, Stream<MouseEvent>) _makeOverlay(Stream<bool> shownStm) {
         final backChevron = HTML.p()
@@ -1311,8 +1322,6 @@ class Messages {
         });
         return (overlay, backBtn.onClick);
     }
-
-    HTMLElement dispoverlay() => _overlay; 
 }
 
 @immutable
@@ -1497,9 +1506,9 @@ void main() async {
     final canvLeftWH = (w: 640, h: 445);
     final canvRightWH =  (w: 600, h: 400);
     final mlogic = MissionLogic.create(window.location.href);
-    final mui = MissionUI(mlogic);
+    final mui = MissionUI.create(mlogic);
     final p1 = PlayerPos.create(Pos(GC(70012), GC(40085)), keydown, keyup, frameStm);
-    final phud = PlayerHUD(p1.posStm);
+    final phud = PlayerHUD.create(p1.posStm);
     final t1 = await SimpleOb.create("../assets/tx.png", mlogic.txpos, 30, Power(mW: 100), mlogic.mission != Mission.m1);
     final sim = Sim.create(p1.posObs, t1.pos, t1.txpower!);
     final bushes = await Objs.create(p1.posObs.latestVal, canvLeftWH.w, canvLeftWH.h);
@@ -1511,7 +1520,7 @@ void main() async {
     final cmLife = CanvMLeft.create(canvLeftWH.w, canvLeftWH.h, []);
     final cmLob = CanvMRight.create(canvRightWH.w, canvRightWH.h, document.body!.onMouseUp);
     final lobc = LOBCol.create(keydown, sim.univLobs, cmLob.click, p1.posObs, zoom.scaleObs);
-    final msgs = Messages.create(mlogic.mission == Mission.m1);
+    final msgs = Messages.create(mlogic);
     final lrm = LeftRightM.create([road, avatar, bushes, t1], [lobc, grid], [reticle]); 
     final pan = Pan.create(cmLob.mevStm, p1.posObs, p1.posStm, zoom.scaleObs);
     final loser = Loser.create(mlogic, p1.posStm);
@@ -1523,18 +1532,14 @@ void main() async {
     switch(document.getElementById("gameroot")) {
         case null: window.alert("Cannot attach elements; no `gameroot` element found");
         case final gamerootelem: gamerootelem.replaceChildren(
-            assembleElems(cmLife, cmLob, tabletChildren: [
-                phud.disp(),
-                lobc.dispInfo(),
-                lobc.dispCtl(),
-                mui.disp(),
-                zoom.disp(),
-                pan.disp(),
-                lrm.disp(),
-                msgs.dispMsgBtn(),
-                msgs.dispoverlay(),
-                loser.disp(),
-            ])
+            assembleElems(cmLife, cmLob, tabletChildren: 
+                [phud, lobc, mui, zoom, msgs])
+                /// TODO
+            //     pan.disp(),
+            //     lrm.disp(),
+            //     msgs.disp,
+            //     loser.disp(),
+            // ])
         );
     }
 }

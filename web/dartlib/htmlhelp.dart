@@ -35,7 +35,7 @@ class HTML {
         el.setAttribute("type", "checkbox");
         return el;
     }
-    static HTMLDivElement div({String? id, String? className, Iterable<HTMLElement>? children, Iterable<ImmuElem>? ichildren}) {
+    static HTMLDivElement div({String? id, String? className, Iterable<HTMLElement>? children, Iterable<Box<HTMLElement>>? ichildren}) {
         final e = document.createElement('div') as HTMLDivElement;
         if (id != null) {
             e.id = id;
@@ -78,7 +78,11 @@ extension Flickerable on HTMLElement {
     }
 }
 
-extension type ImmuElem(HTMLElement privateElemDoNotTouchInFilesOutsideHtmlHelp) {}
+class Box<T> {
+    final HTMLElement privateElemDoNotTouchInFilesOutsideHtmlHelp;
+
+    Box(this.privateElemDoNotTouchInFilesOutsideHtmlHelp);
+}
 
 
 /// Repeatedly call requestAnimationFrame; pass the time delta as an argument to `frameUpdate`
