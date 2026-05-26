@@ -2,8 +2,6 @@
 Next steps (overview) -- details for each below in same order
 
 1 week
-- sound fx
-    - inc message sound affect is still sometimes playing after messages have been checked
 
 1 month:
 - Efficiency
@@ -26,8 +24,7 @@ Next steps (overview) -- details for each below in same order
 ##########                         1 week                          ##########
 #############################################################################
 #############################################################################
-Sound FX:
-    - possibly add a sound for incoming messages/walking
+
 
 #############################################################################
 #############################################################################

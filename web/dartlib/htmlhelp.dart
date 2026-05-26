@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:js_interop';
-import 'package:web/web.dart';
-import 'generic.dart' show Mut, Eff;
 import 'dart:math';
+
+import 'package:web/web.dart';
+
+import './coordinates.dart' show GridCC;
+import './generic.dart' show Mut, Eff, Reassigns;
 
 
 typedef Cctx = CanvasRenderingContext2D;
@@ -13,6 +16,21 @@ typedef DuStm = Stream<Duration>;
 class E {
     final Window window;
     E(this.window);
+}
+
+mixin Displayable {
+    Box<HTMLElement> get disp;
+}
+
+
+sealed class AbleToDraw {}
+
+abstract class Drawable extends AbleToDraw {
+    void draw(Cctx ctx, GridCC gridcc);
+}
+
+abstract class HasOwnCanv extends AbleToDraw {
+    HTMLCanvasElement get canv;
 }
 
 
@@ -167,4 +185,89 @@ Future<HTMLImageElement> imageload(String path) async {
     final el = HTMLImageElement()..src = path;
     await el.decode().toDart;
     return el;
+}
+
+
+
+class OkDialog {
+    final _dialogWrap = HTML.div();
+    bool _dispHasBeenCalled = false;
+
+    /// Return value is `true` if user clicked `OK`; `false` if user clicked `Cancel`.
+    /// throws Exception if disp has not been called. (Would prefer to do that as a static 
+    /// compile-time check, but don't know how.)
+    @Mut(["this._dialogWrap"])
+    Future<void> showWith(String msg, [String? okText]) {
+        if (!_dispHasBeenCalled) {
+            throw Exception("NOTE TO DEVELOPERS: You called `showWith`, but you haven't yet called `disp`. `showWith` won't have any effect if the HTML hasn't been attached to the document. Recommendation: use `disp` in `main` in the same location as the other `disp`s.");
+        }
+        final dialog = HTML.dialog()..className = "game-dialog";
+        dialog.innerText = "$msg \n\n";
+        final okButton = HTML.button()
+            ..textContent = okText ?? "OK"
+            ..classList.add('game-btn');
+        dialog.appendChild(okButton);
+        _dialogWrap.replaceChildren(dialog);
+        dialog.show();
+        return okButton.onClick.first;
+        /// TODO delete if the ok dialog works
+        // listen((_) {
+        //     dialog.close();
+        //     completer.complete(true);
+        // });
+        // return completer.future;
+    }
+    
+    @Reassigns(["this._dispHasBeenCalled"])
+    HTMLElement disp() {
+        _dispHasBeenCalled = true;
+        return _dialogWrap;
+    }
+}
+
+
+class OkCancelDialog {
+    final _dialogWrap = HTML.div();
+    bool _dispHasBeenCalled = false;
+
+    /// Return value is `true` if user clicked `OK`; `false` if user clicked `Cancel`.
+    /// throws Exception if disp has not been called. (Would prefer to do that as a static 
+    /// compile-time check, but don't know how.)
+    @Mut(["this._dialogWrap"])
+    Future<bool> showWith(String msg, [String? okText, String? cancelText]) {
+        if (!_dispHasBeenCalled) {
+            throw Exception("NOTE TO DEVELOPERS: You called `showWith`, but you haven't yet called `disp`. `showWith` won't have any effect if the HTML hasn't been attached to the document. Recommendation: use `disp` in `main` in the same location as the other `disp`s.");
+        }
+        final dialog = HTML.dialog()..className = "game-dialog";
+        dialog.innerText = msg;
+        final okButton = HTML.button()
+            ..textContent = okText ?? 'OK'
+            ..classList.add('game-btn');
+        final cancelButton = HTML.button()
+            ..textContent = cancelText ?? 'Cancel'
+            ..classList.add('game-btn');
+        final buttonRow = HTML.div()
+            ..id = 'game-dialog-buttons'
+            ..appendChild(okButton)
+            ..appendChild(cancelButton);
+        final completer = Completer<bool>();
+        okButton.onClick.listen((_) {
+            dialog.close();
+            completer.complete(true);
+        });
+        cancelButton.onClick.listen((_) {
+            dialog.close();
+            completer.complete(false);
+        });
+        dialog.appendChild(buttonRow);
+        _dialogWrap.replaceChildren(dialog);
+        dialog.show();
+        return completer.future;
+    }
+    
+    @Reassigns(["this._dispHasBeenCalled"])
+    HTMLElement disp() {
+        _dispHasBeenCalled = true;
+        return _dialogWrap;
+    }
 }
