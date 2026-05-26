@@ -30,26 +30,26 @@ class PlayerPos {
     PlayerPos(this.dirxyStm, this.posStm, this.posObs, this.runningObs);
     
     @factory
-    static PlayerPos create(Pos initPos, KbStm keydown, KbStm keyup, DuStm tdelta) {
+    static PlayerPos create(MissionLogic mlogic, KbStm keydown, KbStm keyup, DuStm tdelta) {
         final pressedStm = _makePressed(keydown, keyup);
         final dirxyStm = _makeDirXY(pressedStm);
         final runningObs = _makeRunning(pressedStm);
-        final posStm = _makePos(initPos, tdelta, dirxyStm, runningObs);
-        final posObs = Observable(initPos, posStm);
+        final posStm = _makePos(mlogic.p1InitPos, tdelta, dirxyStm, runningObs);
+        final posObs = Observable(mlogic.p1InitPos, posStm);
         return PlayerPos(dirxyStm, posStm, posObs, runningObs);
     }
 
     static Stream<ImmuSet<String>> _makePressed(KbStm keydown, KbStm keyup) {
         final pressed = <String>{};
         final sc = StreamController<ImmuSet<String>>.broadcast();
-        keydown.listen((e) {
-            if (!e.repeat) {
-                pressed.add(e.code);
+        keydown.listen((ev) {
+            if (!ev.repeat) {
+                pressed.add(ev.code);
                 sc.add(ImmuSet(pressed));
             }
         });
-        keyup.listen((e) {
-            pressed.remove(e.code);
+        keyup.listen((ev) {
+            pressed.remove(ev.code);
             sc.add(ImmuSet(pressed));
         });
         return sc.stream.asBroadcastStream();
@@ -209,12 +209,12 @@ class CanvMRight with Displayable {
     }
 }
 
-class Loser {
+class Loser with Displayable {
     static final GC m1LoseThres = GC(40100);
-    final OkDialog _dialog;
-    HTMLElement disp() => _dialog.disp();
+    @override
+    final Box<HTMLElement> disp;
 
-    Loser(this._dialog);
+    Loser(this.disp);
     
     /// On position stream events, check whether the y val is too high.
     @factory
@@ -223,10 +223,12 @@ class Loser {
         p1posStm
             .where((p1pos) => isCapture(mlogic, p1pos))
             .first
-            .then((_) => dialog.showWith("You were captured by enemy scouts!", Consts.msgRtn))
-            .then((_) => e.window.open("..", "_self"));
+            .then((_) => dialog
+                .showWith("You were captured by enemy scouts!", Consts.msgRtn)
+                .then((_) => e.window.open("..", "_self"))
+            );
         
-        return Loser(dialog);
+        return Loser(Box(dialog.disp()));
     }
 
     /// True if the mission is m1 and the player's y is too high.
@@ -239,16 +241,18 @@ enum Mission { explore, tutorial, m1 }
 @immutable
 class MissionLogic {
     final Mission mission;
-    final Pos txpos;
     final String msg;
+    final Pos p1InitPos;
+    final Pos txpos;
     
-    MissionLogic(this.mission, this.txpos, this.msg);
+    MissionLogic(this.mission, this.msg, this.p1InitPos, this.txpos);
     
-    /// The argument should be `window.location.href`.
+    /// The argument should be `e.window.location.href`.
     @factory
     static MissionLogic create(String href) {
         final mission = _parseMission(href);
         final random = Random();
+        final p1InitPos = Pos(GC(70012), GC(40085));
         final Pos txpos = switch (mission) {
             Mission.explore => Pos(GC(70020), GC(40090)),
             Mission.m1 => Pos(GC(69975 + random.nextInt(50)), GC(40150)),
@@ -263,7 +267,7 @@ class MissionLogic {
                 Once you have determined the transmitter's grid location, send it to me using your tablet's submission form. Use either an 8 digit grid coordinate (within 10 meters) or a 10 digit grid coordinate (within 1 meter).""",
             Mission.tutorial => "Play the game!",
         };
-        return MissionLogic(mission, txpos, msg);
+        return MissionLogic(mission, msg, p1InitPos, txpos);
     }
 
     static Mission _parseMission(String href) {
@@ -290,16 +294,14 @@ class MissionUI with Displayable {
     MissionUI(this.disp);
 
     @factory
-    static MissionUI create(MissionLogic mlogic) {
-        // final d = switch (mlogic.mission) {
-        //     Mission.explore =>  HTML.div(),
-        //     Mission.tutorial => _form(),
-        //     Mission.m1 => _form(),
-        // };
-        final disp = HTML.div(); // TODO
-        return MissionUI(Box(disp));
+    static MissionUI create(MissionLogic mlogic, E e) {
+        final d = switch (mlogic.mission) {
+            Mission.explore =>  Box<HTMLElement>(HTML.div()),
+            Mission.tutorial => _form(mlogic, e),
+            Mission.m1 => _form(mlogic, e),
+        };
+        return MissionUI(d);
     }
-
         
     static Result<Pos, String> parseSubmission(String submission) {
         // final errLen = "Grid coordinates must be entered as 4, 6, 8, or 10 digit grid, according to the mission requirements.\nExample 10 digit grid: 12345 45678";
@@ -366,12 +368,13 @@ class MissionUI with Displayable {
     }
 
     @Mut(["dialog"])
-    static void _showAllowGoHome(String succmsg, OkCancelDialog dialog) {
-        dialog.showWith(succmsg, Consts.msgRtn, "Continue exploring").then((response) {
-            if (response) {
-                print('TODO window.open("..", "_self");');
-            }
-        });
+    static void _showAllowGoHome(String succmsg, OkCancelDialog dialog, E e) {
+        dialog.showWith(succmsg, Consts.msgRtn, "Continue exploring")
+            .then((goToMSelect) {
+                if (goToMSelect) {
+                   e.window.open("..", "_self");
+                }
+            });
     }
 
     @Mut(["dialog"])
@@ -382,15 +385,17 @@ class MissionUI with Displayable {
         switch(chk) {
             case Success(val: final succmsg):
                 markMissionComplete(mlogic.mission, e);
-                _showAllowGoHome(succmsg, dialog);
+                _showAllowGoHome(succmsg, dialog, e);
             case Failure(val: final errmsg):
                 dialog.showWith(errmsg);
         }
     }
 
-    static void markMissionComplete(Mission mission, E e) { e.window.localStorage.setItem("lobster_completed_${mission.name}", "true"); }
+    static void markMissionComplete(Mission mission, E e) {
+        e.window.localStorage.setItem("lobster_completed_${mission.name}", "true");
+    }
 
-    static HTMLElement _form(E e, MissionLogic mlogic) {
+    static Box<HTMLElement> _form(MissionLogic mlogic, E e) {
         final dialog = OkCancelDialog();
         final form = HTML.form()..id = "submit-coords-form";
         final inpEl = HTMLInputElement()
@@ -406,7 +411,7 @@ class MissionUI with Displayable {
             ev.preventDefault();
             _handleSubmit(inpEl.value, dialog, mlogic, e);
         });
-        return HTML.div(children: [form, dialog.disp()]);
+        return Box(HTML.div(children: [form, dialog.disp()]));
     }
 }
 
@@ -535,13 +540,14 @@ class Messages with Displayable {
 
 /// Provides `Drawable`s to the left and right canvas according to 
 /// whether they are merged or unmerged.
-class LeftRightM {
+class LeftRightM with Displayable {
     Observable<ImmuList<Drawable>> leftObs;
     Observable<ImmuList<Drawable>> rightObs;
     Stream<bool> isMergedStm;
-    final HTMLElement _disp;
+    @override
+    final Box<HTMLElement> disp;
     
-    LeftRightM(this.leftObs, this.rightObs, this._disp, this.isMergedStm);
+    LeftRightM(this.leftObs, this.rightObs, this.disp, this.isMergedStm);
 
     /// `rightInitConditional` is shown when the two are separate, and is omitted when the two are merged.
     static LeftRightM create(Iterable<Drawable> leftInit, Iterable<Drawable> rightInitAlways, Iterable<Drawable> rightInitConditional) {
@@ -576,12 +582,10 @@ class LeftRightM {
         return LeftRightM(
             Observable(lef, scleft.stream),
             Observable(rig, scright.stream),
-            combbtn,
+            Box(combbtn),
             scIsMerged.stream,
         );
     }
-
-    HTMLElement disp() => _disp;
 }
 
 class WalkSfx {
@@ -627,8 +631,8 @@ Future<HTMLElement> gameMain(E e, HTMLElement body) async {
     final canvLeftWH = (w: 640, h: 445);
     final canvRightWH = (w: 600, h: 400);
     final mlogic = MissionLogic.create(e.window.location.href);
-    final mui = MissionUI.create(mlogic);
-    final p1 = PlayerPos.create(Pos(GC(70012), GC(40085)), keydown, keyup, frameStm);
+    final mui = MissionUI.create(mlogic, e);
+    final p1 = PlayerPos.create(mlogic, keydown, keyup, frameStm);
     final phud = PlayerHUD.create(p1.posStm);
     final t1 = await SimpleOb.create("../assets/tx.png", mlogic.txpos, 30, Power(mW: 100), mlogic.mission != Mission.m1);
     final sim = Sim.create(p1.posObs, t1.pos, t1.txpower!);
@@ -651,12 +655,6 @@ Future<HTMLElement> gameMain(E e, HTMLElement body) async {
     cmLife.start(p1.posStm, lrm.leftObs, lrm.isMergedStm);
     cmLob.start(p1.posStm, lrm.rightObs, lrm.isMergedStm, zoom.scaleObs, pan.center);
     return assembleElems(cmLife, cmLob, tabletChildren: 
-            [phud, lobc, mui, zoom, msgs]
-            /// TODO
-            //     pan.disp(),
-            //     lrm.disp(),
-            //     msgs.disp,
-            //     loser.disp(),
-            // ])
+            [phud, lobc, mui, zoom, msgs, pan, lrm, msgs, loser]
     );
 }

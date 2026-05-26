@@ -330,4 +330,6 @@ h2 {
     border: none;
     text-align: center;
     background: none;
+    padding: 10px 20px;
+    font-weight: bold;
 }

@@ -76,11 +76,12 @@ class Zoom with Displayable {
     }
 }
 
-class Pan {
+class Pan with Displayable {
     final Observable<Pos> center;
-    final HTMLButtonElement _resetBtn;
+    @override
+    final Box<HTMLElement> disp;
 
-    Pan(this.center, this._resetBtn);
+    Pan(this.center, this.disp);
 
     @factory
     static Pan create(Stream<MEv> mevStm, Observable<Pos> p1pob, Stream<Pos> p1stm, Observable<double> scaleObs) {
@@ -113,8 +114,6 @@ class Pan {
             followPlayer.set(true);
         });
 
-        return Pan(pannedCenter.observable, recenterBtn);
+        return Pan(pannedCenter.observable, Box(recenterBtn));
     }
-
-    HTMLElement disp() => _resetBtn;
 }
