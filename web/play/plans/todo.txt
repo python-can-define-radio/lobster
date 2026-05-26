@@ -13,6 +13,7 @@ Next steps (overview) -- details for each below in same order
 - Settings expandable
 
 3 months:
+- 2-player
 - Transmitter
 - Credits
 - EM Physics
@@ -95,11 +96,25 @@ Settings expandable:
     - potentially a setting to change all window gc edge markers to 5 digits
     - other settings?
     - turn on background music
-    
+
 #############################################################################
 #############################################################################
 ##########                        3 months                         ##########
 #############################################################################
+#############################################################################
+2-player:
+    - competition mode (same computer):
+        - First player places transmitter
+        - second player plays
+    - Uploadable map (Edit in text editor like notepad)
+        - Doesn't have much value until there are real obstacles that change how LOBs are received
+        - Would be good to do a bit of extra testing on this since it's a security attack vector
+          (if the game got popular enough to have maps uploaded online, we need to make sure the
+          map parsing can't produce weird results like rendering arbitrary HTML)
+        - Probably could use an existing mapping program if it fits our needs.
+    - Maybe Fog of War and/or line-of-sight limitations?
+        - Assuming you have satellite maps, it would just be a limitation on seeing the transmitter
+        - This might not make sense. J wants to think for another day.
 #############################################################################
 Transmitter:
     - Possibly add a transmitter animation that shows waves or no waves based on whether we are transmitting or not. (possible next stage for missions)
