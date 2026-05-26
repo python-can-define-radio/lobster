@@ -4,10 +4,10 @@ library;
 
 import 'dart:async';
 import 'dart:js_interop';
-import 'dart:math';
+import 'dart:math' hide e;
 import 'package:async/async.dart' hide Result;
 import 'package:meta/meta.dart';
-import 'package:web/web.dart';
+import 'package:web/web.dart' hide window;
 import '../dartlib/generic.dart';
 import '../dartlib/htmlhelp.dart';
 
@@ -26,13 +26,12 @@ class OkDialog {
     bool _dispHasBeenCalled = false;
 
     /// Return value is `true` if user clicked `OK`; `false` if user clicked `Cancel`.
-    /// Shows an alert if disp has not been called. (Would prefer to do that as a static 
+    /// throws Exception if disp has not been called. (Would prefer to do that as a static 
     /// compile-time check, but don't know how.)
-    @Eff("window.alert")
     @Mut(["this._dialogWrap"])
     Future<bool> showWith(String msg, [String? okText]) {
         if (!_dispHasBeenCalled) {
-            window.alert("NOTE TO DEVELOPERS: You called `showWith`, but you haven't yet called `disp`. `showWith` won't have any effect if the HTML hasn't been attached to the document. Recommendation: use `disp` in `main` in the same location as the other `disp`s.");
+            throw Exception("NOTE TO DEVELOPERS: You called `showWith`, but you haven't yet called `disp`. `showWith` won't have any effect if the HTML hasn't been attached to the document. Recommendation: use `disp` in `main` in the same location as the other `disp`s.");
         }
         final dialog = HTML.dialog()..className = "game-dialog";
         dialog.innerText = "$msg \n\n";
@@ -64,13 +63,12 @@ class OkCancelDialog {
     bool _dispHasBeenCalled = false;
 
     /// Return value is `true` if user clicked `OK`; `false` if user clicked `Cancel`.
-    /// Shows an alert if disp has not been called. (Would prefer to do that as a static 
+    /// throws Exception if disp has not been called. (Would prefer to do that as a static 
     /// compile-time check, but don't know how.)
-    @Eff("window.alert")
     @Mut(["this._dialogWrap"])
     Future<bool> showWith(String msg, [String? okText, String? cancelText]) {
         if (!_dispHasBeenCalled) {
-            window.alert("NOTE TO DEVELOPERS: You called `showWith`, but you haven't yet called `disp`. `showWith` won't have any effect if the HTML hasn't been attached to the document. Recommendation: use `disp` in `main` in the same location as the other `disp`s.");
+            throw Exception("NOTE TO DEVELOPERS: You called `showWith`, but you haven't yet called `disp`. `showWith` won't have any effect if the HTML hasn't been attached to the document. Recommendation: use `disp` in `main` in the same location as the other `disp`s.");
         }
         final dialog = HTML.dialog()..className = "game-dialog";
         dialog.innerText = msg;
@@ -913,9 +911,8 @@ class Loser {
     Loser(this._dialog);
     
     /// On position stream events, check whether the y val is too high.
-    @Eff("window.open")
     @factory
-    static Loser create(MissionLogic mlogic, Stream<Pos> p1posStm) {
+    static Loser create(MissionLogic mlogic, Stream<Pos> p1posStm, E e) {
         final dialog = OkDialog();
         final capStm = p1posStm
             .where((p1pos) => isCapture(mlogic, p1pos))
@@ -925,7 +922,7 @@ class Loser {
             dialog
                 .showWith("You were captured by enemy scouts!", Consts.msgRtn)
                 .then((_) {
-                    window.open("..", "_self");
+                    e.window.open("..", "_self");
                 });
         });
         return Loser(dialog);
@@ -942,22 +939,30 @@ enum Mission { explore, tutorial, m1 }
 class MissionLogic {
     final Mission mission;
     final Pos txpos;
+    final String msg;
     
-    MissionLogic(this.mission, this.txpos);
+    MissionLogic(this.mission, this.txpos, this.msg);
     
     /// The argument should be `window.location.href`.
     @factory
     static MissionLogic create(String href) {
         final mission = _parseMission(href);
         final random = Random();
-        final Pos txpos;
-        txpos = switch (mission) {
+        final Pos txpos = switch (mission) {
             Mission.explore => Pos(GC(70020), GC(40090)),
             Mission.m1 => Pos(GC(69975 + random.nextInt(50)), GC(40150)),
             Mission.tutorial => Pos(GC(70010), GC(40100)),
         };
-
-return MissionLogic(mission, txpos);
+        final String msg = switch (mission) {
+            Mission.explore => "",
+            Mission.m1 => """Use your direction-finding equipment to locate the enemy transmitter.
+                
+                The adversary's scouts are watching in force. To avoid capture, stay south of the east/west road, which is grid ${Loser.m1LoseThres.val} northing.
+                
+                Once you have determined the transmitter's grid location, send it to me using your tablet's submission form. Use either an 8 digit grid coordinate (within 10 meters) or a 10 digit grid coordinate (within 1 meter).""",
+            Mission.tutorial => "Play the game!",
+        };
+        return MissionLogic(mission, txpos, msg);
     }
 
     static Mission _parseMission(String href) {
@@ -985,7 +990,6 @@ class MissionUI with Displayable{
     MissionUI(this.mlogic, this.disp);
 
     @factory
-    @Eff("window.open")
     static MissionUI create(MissionLogic mlogic) {
         // final d = switch (mlogic.mission) {
         //     Mission.explore =>  HTML.div(),
@@ -1061,35 +1065,32 @@ class MissionUI with Displayable{
             .then((x) => flatten(x));
     }
 
-    @Eff("window.open")
     @Mut(["dialog"])
     static void _showAllowGoHome(String succmsg, OkCancelDialog dialog) {
         dialog.showWith(succmsg, Consts.msgRtn, "Continue exploring").then((response) {
             if (response) {
-                window.open("..", "_self");
+                print('TODO window.open("..", "_self");');
             }
         });
     }
 
-    @Eff("window.open")
     @Mut(["dialog"])
-    void _handleSubmit(String submission, OkCancelDialog dialog) {
+    void _handleSubmit(String submission, OkCancelDialog dialog, E e) {
         final chk = parseSubmission(submission)
             .map((x) => checkCoords(x))
             .then((x) => flatten(x));
         switch(chk) {
             case Success(val: final succmsg):
-                markMissionComplete(mlogic.mission);
+                markMissionComplete(mlogic.mission, e);
                 _showAllowGoHome(succmsg, dialog);
             case Failure(val: final errmsg):
                 dialog.showWith(errmsg);
         }
     }
 
-    static void markMissionComplete(Mission mission) { window.localStorage.setItem("lobster_completed_${mission.name}", "true"); }
+    static void markMissionComplete(Mission mission, E e) { e.window.localStorage.setItem("lobster_completed_${mission.name}", "true"); }
 
-    @Eff("window.open")
-    HTMLElement _form() {
+    HTMLElement _form(E e) {
         final dialog = OkCancelDialog();
         final form = HTML.form()..id = "submit-coords-form";
         final inpEl = HTMLInputElement()
@@ -1101,9 +1102,9 @@ class MissionUI with Displayable{
         form
             ..appendChild(inpEl)
             ..appendChild(subbtn);
-        form.onSubmit.listen((e) {
-            e.preventDefault();
-            _handleSubmit(inpEl.value, dialog);
+        form.onSubmit.listen((ev) {
+            ev.preventDefault();
+            _handleSubmit(inpEl.value, dialog, e);
         });
         return HTML.div(children: [form, dialog.disp()]);
     }
@@ -1228,44 +1229,70 @@ class Pan {
     HTMLElement disp() => _resetBtn;
 }
 
-class Messages with Displayable{
+class Messages with Displayable {
     @override
     final Box<HTMLElement> disp;
 
     Messages(this.disp);
 
+    @Eff("HTMLAudioElement")
     @factory
-    static Messages create(MissionLogic mlogic) {
+    static Messages create(MissionLogic mlogic, Stream<DirXY> dirxyStm) {
         if (mlogic.mission == Mission.explore) {
             return Messages(Box(HTML.div()));  /// Explore doesn't have messages
         }
         /// True if there is an unread message
-        final incmsgSC = StreamController<bool>.broadcast();
+        final hasMsgSC = StreamController<bool>.broadcast();
         /// True if the messages overlay is shown
-        final shownSC = StreamController<bool>.broadcast(); 
-        final msgBtn = _makeMsgBtn(incmsgSC.stream);
-        final (overlay, backBtnClick) = _makeOverlay(shownSC.stream);
-        backBtnClick.listen((_) => shownSC.add(false));
-        incmsgSC.add(true);
-        shownSC.add(false);
-        final notifAudio = HTMLAudioElement()
-            ..src = "../assets/game_sounds/inc_message.wav"
-            ..loop = true;
+        final ovShownSC = StreamController<bool>.broadcast();
+        final (msgBtn, msgBtnClick) = _makeMsgBtn(hasMsgSC.stream);
+        final (overlay, backBtnClick) = _makeOverlay(ovShownSC.stream, mlogic, hasMsgSC.stream);
+        backBtnClick.listen((_) => ovShownSC.add(false));
+        _setupAudio(hasMsgSC.stream);
+        
+        /// Trigger new message after player moves for the first time.
+        /// We wait until movement has happened because some browsers disallow
+        /// audio playback before page interaction.
+        /// The randomness attempts to add realism because your leadership probably
+        /// wouldn't contact you at the EXACT INSTANT that you moved :-)
+        dirxyStm
+            .where((dirxy) => !dirxy.isZero)
+            .first
+            .then((_) {
+                final r = Random();
+                final dur = Duration(milliseconds: 500 + r.nextInt(1500));
+                Future<void>.delayed(dur).then((_) => hasMsgSC.add(true)); 
+            });
 
-        Future<void>.delayed(Duration(seconds: 2), () {
-            notifAudio.play();
+        msgBtnClick.listen((_) {
+            ovShownSC.add(true);
+            hasMsgSC.add(false);
         });
-        msgBtn.onClick.listen((_) {
-            notifAudio.pause();
-            notifAudio.currentTime = 0;
-            shownSC.add(true);
-            incmsgSC.add(false);
-        });
-        final d = HTML.div(children: [msgBtn, overlay]);
+
+        /// Overlay is initially hidden; no messages initially
+        ovShownSC.add(false);
+        hasMsgSC.add(false);
+        
+        final d = HTML.div(ichildren: [msgBtn, overlay]);
         return Messages(Box(d));
     }
     
-    static HTMLElement _makeMsgBtn(Stream<bool> incMsgStm) {
+    @Eff("HTMLAudioElement")
+    static void _setupAudio(Stream<bool> hasMsgStm) {
+        final notifAudio = HTMLAudioElement();
+        hasMsgStm.listen((hasMsg) {
+            if (hasMsg) {
+                notifAudio.src = "../assets/game_sounds/inc_message.wav";
+                notifAudio.loop = true;
+                notifAudio.play();
+            } else {
+                notifAudio.pause();
+                notifAudio.currentTime = 0;
+            }
+        });
+    }
+    /// Button style depends on whether there is currently an unread message.
+    static (Box<HTMLElement>, Stream<Object>) _makeMsgBtn(Stream<bool> hasMsgStm) {
         final messagetext = HTML.p()
             ..className = "fa-regular fa-2x msgs-text";
 
@@ -1274,14 +1301,13 @@ class Messages with Displayable{
             ..title = "Messages"
             ..appendChild(messagetext);
 
-        incMsgStm.listen((incMsg) {
-            if (incMsg) {
+        hasMsgStm.listen((hasMsg) {
+            if (hasMsg) {
                 messagetext.classList.add("fa-envelope");
                 messagetext.classList.remove("fa-envelope-open");
                 msgbtn.classList.add("msgs-unread");
                 msgbtn.classList.add("msgs-strobe");
-            }
-            else {
+            } else {
                 messagetext.classList.add("fa-envelope-open");
                 messagetext.classList.remove("fa-envelope");
                 msgbtn.classList.remove("msgs-unread");
@@ -1289,10 +1315,11 @@ class Messages with Displayable{
             }
         });
 
-        return msgbtn;
+        return (Box(msgbtn), msgbtn.onClick);
     }
 
-    static (HTMLElement, Stream<MouseEvent>) _makeOverlay(Stream<bool> shownStm) {
+    /// The returned stream should be used to control the overlay visibility.
+    static (Box<HTMLElement>, Stream<MouseEvent>) _makeOverlay(Stream<bool> ovShownStm, MissionLogic mlogic, Stream<bool> hasMsgStm) {
         final backChevron = HTML.p()
             ..className = "fa-solid fa-chevron-left fa-2x msgs-text";
         
@@ -1300,27 +1327,28 @@ class Messages with Displayable{
             ..className = "game-btn backbtn"
             ..appendChild(backChevron);
 
+        final missionMsgText = HTML.p()
+            ..id = "mission-message";
+        
+        hasMsgStm
+            .where((hasMsg) => hasMsg)
+            .first
+            .then((_) => missionMsgText.innerText = mlogic.msg);
+
         final overlay = HTML.div(id: "overlay", children: [
             backBtn,
             HTML.h2()..innerText = "Messages",
             HTML.span()..className = "fa-solid fa-circle-user fa-3x",
-            HTML.p()
-                ..id = "m1-message"
-                ..innerText = """The adversary's scouts are watching in force.
-
-                To avoid capture, stay behind the FLOT -- don't go any further North than grid ${Loser.m1LoseThres.val} northing.
-                
-                Once you have determined the transmitter's grid location, send it to me using your tablet's submission form using either an 8 digit grid coordinate (within 10 meters) or a 10 digit grid coordinate (within 1 meter).""",
+            missionMsgText,
         ]);
-        shownStm.listen((shown) {
-            if (shown) {
+        ovShownStm.listen((ovShown) {
+            if (ovShown) {
                 overlay.classList.remove("hidden");
-            }
-            else {
+            } else {
                 overlay.classList.add("hidden");
             }
         });
-        return (overlay, backBtn.onClick);
+        return (Box(overlay), backBtn.onClick);
     }
 }
 
@@ -1499,13 +1527,13 @@ class WalkSfx {
 }
 
 @Eff("*")
-void main() async {
+void gameMain(Element gamerootelem, E e) async {
     final keydown = document.body!.onKeyDown;
     final keyup = document.body!.onKeyUp;
     final frameStm = makeFrameStm();
     final canvLeftWH = (w: 640, h: 445);
-    final canvRightWH =  (w: 600, h: 400);
-    final mlogic = MissionLogic.create(window.location.href);
+    final canvRightWH = (w: 600, h: 400);
+    final mlogic = MissionLogic.create(e.window.location.href);
     final mui = MissionUI.create(mlogic);
     final p1 = PlayerPos.create(Pos(GC(70012), GC(40085)), keydown, keyup, frameStm);
     final phud = PlayerHUD.create(p1.posStm);
@@ -1520,26 +1548,24 @@ void main() async {
     final cmLife = CanvMLeft.create(canvLeftWH.w, canvLeftWH.h, []);
     final cmLob = CanvMRight.create(canvRightWH.w, canvRightWH.h, document.body!.onMouseUp);
     final lobc = LOBCol.create(keydown, sim.univLobs, cmLob.click, p1.posObs, zoom.scaleObs);
-    final msgs = Messages.create(mlogic);
+    final msgs = Messages.create(mlogic, p1.dirxyStm);
     final lrm = LeftRightM.create([road, avatar, bushes, t1], [lobc, grid], [reticle]); 
     final pan = Pan.create(cmLob.mevStm, p1.posObs, p1.posStm, zoom.scaleObs);
-    final loser = Loser.create(mlogic, p1.posStm);
+    final loser = Loser.create(mlogic, p1.posStm, e);
     final walkAudio = HTMLAudioElement()..src = "../assets/game_sounds/walk_grass.wav";
     final walkSfx = WalkSfx(walkAudio);
     p1.dirxyStm.listen((d) { walkSfx.update(!d.isZero, p1.runningObs.latestVal); });
     cmLife.start(p1.posStm, lrm.leftObs, lrm.isMergedStm);
     cmLob.start(p1.posStm, lrm.rightObs, lrm.isMergedStm, zoom.scaleObs, pan.center);
-    switch(document.getElementById("gameroot")) {
-        case null: window.alert("Cannot attach elements; no `gameroot` element found");
-        case final gamerootelem: gamerootelem.replaceChildren(
-            assembleElems(cmLife, cmLob, tabletChildren: 
-                [phud, lobc, mui, zoom, msgs])
-                /// TODO
+    gamerootelem.replaceChildren(
+        assembleElems(cmLife, cmLob, tabletChildren: 
+            [phud, lobc, mui, zoom, msgs]
+            /// TODO
             //     pan.disp(),
             //     lrm.disp(),
             //     msgs.disp,
             //     loser.disp(),
             // ])
-        );
-    }
+        )
+    );
 }

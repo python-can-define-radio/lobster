@@ -84,7 +84,6 @@ Tutorial:
 #############################################################################
 Ground objects:
     - Consider procedurally generated ground colors discuss whether on both or just left canvas
-    - bushes should not be drawn on the roads
 
 #############################################################################
 Mission instructions:

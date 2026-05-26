@@ -10,6 +10,12 @@ typedef KbStm = ElementStream<KeyboardEvent>;
 typedef DuStm = Stream<Duration>;
 
 
+class E {
+    final Window window;
+    E(this.window);
+}
+
+
 /// Methods for creating HTML elems
 class HTML {
     static HTMLButtonElement button() =>

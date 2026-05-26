@@ -264,7 +264,7 @@ h2 {
     font-size: 1.3em;
 }
 
-#m1-message {
+#mission-message {
     font-family: 'Courier New', Courier, monospace;
     font-size: medium;
     margin-left: 20px;
@@ -318,15 +318,16 @@ h2 {
     gap: 6px;
     margin-top: 8px;
     padding: 8px;
-    background: rgba(0,0,0,0.8);
+    background: lightgreen;
 }
 
 .settings-panel a {
-    color: white;
+    color: black;
     text-decoration: none;
 }
 
 .summary {
     border: none;
     text-align: center;
+    background: none;
 }
