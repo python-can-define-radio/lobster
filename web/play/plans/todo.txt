@@ -155,9 +155,6 @@ Tiles:
 
 
 
-
-
-
 https://opengameart.org/content/ground
 https://opengameart.org/content/45-high-res-ground-texture-photos
 https://opengameart.org/content/ground-tiles-1
@@ -177,3 +174,15 @@ https://opengameart.org/content/pixel-art-jeep
 
 possible sound to use for the car7
 https://opengameart.org/content/engine-loop-heavy-vehicletank
+
+possible building tileset
+https://opengameart.org/content/2d-simple-building
+
+possible road tilesets
+https://opengameart.org/content/road-tile-textures
+
+
+##############
+
+3d terrain?
+

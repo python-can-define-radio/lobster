@@ -14,12 +14,22 @@ import '../dartlib/leftcanvas.dart';
 import '../dartlib/lobs.dart';
 import '../dartlib/mapcontrol.dart';
 
+/// Plan is to remove this as soon as we successfully setup babylon interop
+import 'dart:js_interop_unsafe';
 
 
 class Consts {
     static final msgRtn = "Return to mission selection";
 }
 
+/// Fetching the camera's position which is drawn on the Babylon canvas
+Stream<Pos> bPosStm(){
+                return Stream.periodic(Duration(milliseconds: 100), (idk){
+                    final x = runJs("window.camera.position.x");
+                    final z = runJs("window.camera.position.z");
+                    return Pos(GC(x as double), GC(z as double));
+                }).asBroadcastStream();
+}
 
 class PlayerPos {
     final Stream<DirXY> dirxyStm;
@@ -34,7 +44,9 @@ class PlayerPos {
         final pressedStm = _makePressed(keydown, keyup);
         final dirxyStm = _makeDirXY(pressedStm);
         final runningObs = _makeRunning(pressedStm);
-        final posStm = _makePos(mlogic.p1InitPos, tdelta, dirxyStm, runningObs);
+        /// Temporarily disabled during Babylon migration
+        // final posStm = _makePos(mlogic.p1InitPos, tdelta, dirxyStm, runningObs);
+        final posStm = bPosStm();
         final posObs = Observable(mlogic.p1InitPos, posStm);
         return PlayerPos(dirxyStm, posStm, posObs, runningObs);
     }
@@ -42,16 +54,17 @@ class PlayerPos {
     static Stream<ImmuSet<String>> _makePressed(KbStm keydown, KbStm keyup) {
         final pressed = <String>{};
         final sc = StreamController<ImmuSet<String>>.broadcast();
-        keydown.listen((ev) {
-            if (!ev.repeat) {
-                pressed.add(ev.code);
-                sc.add(ImmuSet(pressed));
-            }
-        });
-        keyup.listen((ev) {
-            pressed.remove(ev.code);
-            sc.add(ImmuSet(pressed));
-        });
+        /// Temporarily disabled during Babylon migration
+        // keydown.listen((ev) {
+        //     if (!ev.repeat) {
+        //         pressed.add(ev.code);
+        //         sc.add(ImmuSet(pressed));
+        //     }
+        // });
+        // keyup.listen((ev) {
+        //     pressed.remove(ev.code);
+        //     sc.add(ImmuSet(pressed));
+        // });
         return sc.stream.asBroadcastStream();
     }
 
@@ -622,6 +635,112 @@ HTMLElement assembleElems(CanvMLeft cmLife, CanvMRight cmLob, {required Iterable
     );
 }
 
+dynamic runJs(String code) {
+  return globalContext.callMethod(
+    'eval'.toJS,
+    code.toJS,
+  );
+}
+
+void babylonStuff(){
+    
+    final v = 20;
+    
+    runJs("""
+        const canvas = document.getElementById("renderCanvas");
+        const engine = new BABYLON.Engine(canvas, true);
+
+        const createScene = function () {
+            const scene = new BABYLON.Scene(engine);
+
+            const camera = new BABYLON.FreeCamera("camera",
+                new BABYLON.Vector3(70000, $v, 40000),
+                scene
+            );
+            window.camera = camera
+            // Rotate camera downward 45 degrees
+            camera.rotation.x = Math.PI / 4;
+
+            // Enable WASD movement
+            camera.keysUp.push(87);    // W
+            camera.keysDown.push(83);  // S
+            camera.keysLeft.push(65);  // A
+            camera.keysRight.push(68); // D
+            camera.attachControl(canvas, true);
+
+            // Light
+            const light = new BABYLON.HemisphericLight(
+                "light",
+                new BABYLON.Vector3(0, 1, 0),
+                scene
+            );
+
+            const greenMat = BABYLON.UnlitMaterial; //  new BABYLON.StandardMaterial("greenMat", scene);
+            // greenMat.diffuseColor = new BABYLON.Color3(0, 1, 0);
+
+            const idkcolorMat = new BABYLON.StandardMaterial("idkcolorMat", scene);
+            idkcolorMat.diffuseColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+
+            // Ground plane
+            const ground = BABYLON.MeshBuilder.CreateGround("ground", {
+                width: 200000,
+                height: 200000
+            }, scene);
+
+            ground.material = idkcolorMat;
+
+            for (let i = 0; i < 5000; i++) {
+                const box = BABYLON.MeshBuilder.CreateBox("box" + i, { size: 1 }, scene);
+
+                // Random position within the larger ground
+                box.position.x = 70000 + (Math.random() - 0.5) * 200; // keep inside ground
+                box.position.z = 40000 + (Math.random() - 0.5) * 200;
+                box.position.y = 0.5;
+                box.material = greenMat;
+                // box.checkCollisions = true;
+            }
+
+            const player = BABYLON.MeshBuilder.CreateSphere("player", { diameter: 1 }, scene);
+            player.position = new BABYLON.Vector3(0, 0.5, 0);
+
+            const blueMat = new BABYLON.StandardMaterial("blueMat", scene);
+            blueMat.diffuseColor = new BABYLON.Color3(0, 0, 1);
+            player.material = blueMat;
+            // player.checkCollisions = true;
+
+            scene.onBeforeRenderObservable.add(() => {
+                camera.position.y = $v;
+            });
+
+            // Smooth movement: camera moves, player follows camera with collisions
+            scene.onBeforeRenderObservable.add(() => {
+                // Player follows camera horizontally
+                const targetPos = new BABYLON.Vector3(
+                    camera.position.x,
+                    0.5,
+                    camera.position.z + $v
+                );
+
+                const delta = targetPos.subtract(player.position);
+                player.moveWithCollisions(delta);
+            });
+
+            camera.speed = 0.2;
+            return scene;
+        };
+
+        const scene = createScene();
+
+        engine.runRenderLoop(function () {
+            scene.render();
+        });
+
+        window.addEventListener("resize", function () {
+            engine.resize();
+        });
+   
+""");
+}
 
 @Eff("*")
 Future<HTMLElement> gameMain(E e, HTMLElement body) async {
@@ -651,6 +770,7 @@ Future<HTMLElement> gameMain(E e, HTMLElement body) async {
     final loser = Loser.create(mlogic, p1.posStm, e);
     final walkAudio = HTMLAudioElement()..src = "../assets/game_sounds/walk_grass.wav";
     final walkSfx = WalkSfx(walkAudio);
+    babylonStuff();
     p1.dirxyStm.listen((d) { walkSfx.update(!d.isZero, p1.runningObs.latestVal); });
     cmLife.start(p1.posStm, lrm.leftObs, lrm.isMergedStm);
     cmLob.start(p1.posStm, lrm.rightObs, lrm.isMergedStm, zoom.scaleObs, pan.center);
