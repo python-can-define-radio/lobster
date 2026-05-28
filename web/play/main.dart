@@ -6,7 +6,7 @@ import 'dart:async';
 import 'dart:js_interop';
 import 'dart:math' hide e;
 import 'package:meta/meta.dart';
-import 'package:web/web.dart' hide document, window;
+import 'package:web/web.dart';  /// TODO: hide document, window
 import '../dartlib/coordinates.dart';
 import '../dartlib/generic.dart';
 import '../dartlib/htmlhelp.dart';
@@ -14,88 +14,60 @@ import '../dartlib/leftcanvas.dart';
 import '../dartlib/lobs.dart';
 import '../dartlib/mapcontrol.dart';
 
-/// Plan is to remove this as soon as we successfully setup babylon interop
-import 'dart:js_interop_unsafe';
-
 
 class Consts {
     static final msgRtn = "Return to mission selection";
 }
 
-/// Fetching the camera's position which is drawn on the Babylon canvas
-Stream<Pos> bPosStm(){
-                return Stream.periodic(Duration(milliseconds: 100), (idk){
-                    final x = runJs("window.camera.position.x");
-                    final z = runJs("window.camera.position.z");
-                    return Pos(GC(x as double), GC(z as double));
-                }).asBroadcastStream();
-}
 
-class PlayerPos {
-    final Stream<DirXY> dirxyStm;
-    final Stream<Pos> posStm;
-    final Observable<Pos> posObs;
-    final Observable<bool> runningObs;
 
-    PlayerPos(this.dirxyStm, this.posStm, this.posObs, this.runningObs);
+// class PlayerPos {
+//     final Stream<DirXY> dirxyStm;
+//     // final Observable<Pos> posObs;
+//     final Observable<bool> runningObs;
+
+//     PlayerPos(this.dirxyStm, this.runningObs);
     
-    @factory
-    static PlayerPos create(MissionLogic mlogic, KbStm keydown, KbStm keyup, DuStm tdelta) {
-        final pressedStm = _makePressed(keydown, keyup);
-        final dirxyStm = _makeDirXY(pressedStm);
-        final runningObs = _makeRunning(pressedStm);
-        /// Temporarily disabled during Babylon migration
-        // final posStm = _makePos(mlogic.p1InitPos, tdelta, dirxyStm, runningObs);
-        final posStm = bPosStm();
-        final posObs = Observable(mlogic.p1InitPos, posStm);
-        return PlayerPos(dirxyStm, posStm, posObs, runningObs);
-    }
+//     @factory
+//     static PlayerPos create(MissionLogic mlogic, KbStm keydown, KbStm keyup, DuStm tdelta) {
+//         final pressedStm = _makePressed(keydown, keyup);
+//         final dirxyStm = _makeDirXY(pressedStm);
+//         final runningObs = _makeRunning(pressedStm);
+//         /// Temporarily disabled during Babylon migration
+//         // final posStm = _makePos(mlogic.p1InitPos, tdelta, dirxyStm, runningObs);
+//         final posStm = bPosStm();
+//         final posObs = Observable(mlogic.p1InitPos, posStm);
+//         return PlayerPos(dirxyStm, runningObs);
+//     }
 
-    static Stream<ImmuSet<String>> _makePressed(KbStm keydown, KbStm keyup) {
-        final pressed = <String>{};
-        final sc = StreamController<ImmuSet<String>>.broadcast();
-        /// Temporarily disabled during Babylon migration
-        // keydown.listen((ev) {
-        //     if (!ev.repeat) {
-        //         pressed.add(ev.code);
-        //         sc.add(ImmuSet(pressed));
-        //     }
-        // });
-        // keyup.listen((ev) {
-        //     pressed.remove(ev.code);
-        //     sc.add(ImmuSet(pressed));
-        // });
-        return sc.stream.asBroadcastStream();
-    }
+//     static Observable<bool> _makeRunning(Stream<ImmuSet<String>> pressedStm) {
+//         final stm = pressedStm.map((pressed) =>
+//             pressed.contains("ShiftLeft") || pressed.contains("ShiftRight")
+//         );
+//         return Observable(false, stm);
+//     }
 
-    static Observable<bool> _makeRunning(Stream<ImmuSet<String>> pressedStm) {
-        final stm = pressedStm.map((pressed) =>
-            pressed.contains("ShiftLeft") || pressed.contains("ShiftRight")
-        );
-        return Observable(false, stm);
-    }
+//     static Stream<DirXY> _makeDirXY(Stream<ImmuSet<String>> pressedStm) {
+//         return pressedStm
+//             .map((pressed) => DirXY.fromPressed(pressed))
+//             .asBroadcastStream();
+//     }
 
-    static Stream<DirXY> _makeDirXY(Stream<ImmuSet<String>> pressedStm) {
-        return pressedStm
-            .map((pressed) => DirXY.fromPressed(pressed))
-            .asBroadcastStream();
-    }
-
-    static Stream<Pos> _makePos(Pos initPos, DuStm tdelta, Stream<DirXY> dirxyStm, Observable<bool> runningObs) {
-        final dirxyObs = Observable(DirXY(0, 0), dirxyStm);
-        return tdelta.scan(
-            initPos, (prev, dt) => _computeNewPos(prev, dt, dirxyObs.latestVal, runningObs.latestVal)
-        ).asBroadcastStream();
-    }
+//     static Stream<Pos> _makePos(Pos initPos, DuStm tdelta, Stream<DirXY> dirxyStm, Observable<bool> runningObs) {
+//         final dirxyObs = Observable(DirXY(0, 0), dirxyStm);
+//         return tdelta.scan(
+//             initPos, (prev, dt) => _computeNewPos(prev, dt, dirxyObs.latestVal, runningObs.latestVal)
+//         ).asBroadcastStream();
+//     }
     
-    static Pos _computeNewPos(Pos prev, Duration dt, DirXY dirxy, bool running) {
-        const baseSpeed = 2.0 * 0.001;
-        final speed = running ? baseSpeed * 2 : baseSpeed;
-        final dist = speed * dt.inMilliseconds;
-        final (xdiff, ydiff) = (dist * dirxy.horiz, dist * dirxy.vert);
-        return (prev + Pos(GC(xdiff), GC(ydiff)));
-    }
-}
+//     static Pos _computeNewPos(Pos prev, Duration dt, DirXY dirxy, bool running) {
+//         const baseSpeed = 2.0 * 0.001;
+//         final speed = running ? baseSpeed * 2 : baseSpeed;
+//         final dist = speed * dt.inMilliseconds;
+//         final (xdiff, ydiff) = (dist * dirxy.horiz, dist * dirxy.vert);
+//         return (prev + Pos(GC(xdiff), GC(ydiff)));
+//     }
+// }
 
 class PlayerHUD with Displayable {
     @override
@@ -635,111 +607,130 @@ HTMLElement assembleElems(CanvMLeft cmLife, CanvMRight cmLob, {required Iterable
     );
 }
 
-dynamic runJs(String code) {
-  return globalContext.callMethod(
-    'eval'.toJS,
-    code.toJS,
-  );
+@JS("BABYLON.Engine")
+extension type Engine._(JSObject _) implements JSObject {
+    external Engine(HTMLCanvasElement canvas, bool antialias);
+    external void runRenderLoop(JSFunction function);
 }
 
-void babylonStuff(){
+@JS()
+extension type Addable._(JSObject _) implements JSObject {
+    external void add(JSFunction function);
+}
+
+
+@JS("BABYLON.Scene")
+extension type Scene._(JSObject _) implements JSObject {
+    external Scene(Engine engine);
+    external Addable get onBeforeRenderObservable;
+    external void render();
+}
+
+@JS("BABYLON.UniversalCamera")
+extension type UniversalCamera._(JSObject _) implements JSObject {
+    external UniversalCamera(String s, Vector3 loc, Scene scene);
+    external Vector3 get position;
+    external Vector3 get rotation;
+    external void attachControl(HTMLCanvasElement canvas, bool noPreventDefault);
+    external num speed;
+    external Vector3 upVector;
+    external Vector3 cameraDirection;
+    external JSArray<JSNumber> keysUp;
+    external JSArray<JSNumber> keysDown;
+    external JSArray<JSNumber> keysLeft;
+    external JSArray<JSNumber> keysRight;
+    external Addable get onViewMatrixChangedObservable;
+}
+
+@JS("BABYLON.Vector3")
+extension type Vector3._(JSObject _) implements JSObject {
+    external Vector3(num x, num y, num z);
+    external num x;
+    external num y;
+    external num z;
+}
+
+@JS("BABYLON.HemisphericLight")
+extension type HemisphericLight._(JSObject _) implements JSObject {
+    external HemisphericLight(String s, Vector3 loc, Scene scene);
+}
+
+@JS()
+extension type MeshOrSomething._(JSObject _) implements JSObject {
+    external Vector3 position;
+}
+
+
+@JS("BABYLON.MeshBuilder")
+extension type MeshBuilder._(JSObject _) implements JSObject {
+    // ignore: non_constant_identifier_names
+    external static MeshOrSomething CreateGround(String s, GroundOptions cgo, Scene scene);
+    external static MeshOrSomething CreateSphere(String s, SphereOptions cgo, Scene scene);
+}
+
+extension type GroundOptions._(JSObject _) implements JSObject {
+    external GroundOptions({num width, num height});
+    external num get width;
+    external num get height;
+}
+
+extension type SphereOptions._(JSObject _) implements JSObject {
+    external SphereOptions({num diameter});
+    external num get diameter;
+}
+
+Stream<Pos> configBabylon() {
+    final canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
+    final engine = Engine(canvas, true);
+    final scene = Scene(engine);
+    final camera = UniversalCamera("camera1", Vector3(70000, 10, 40000), scene)
+        ..attachControl(canvas, true)
+        ..keysUp = [87.toJS].toJS
+        ..keysDown = [83.toJS].toJS 
+        ..keysLeft = [65.toJS].toJS 
+        ..keysRight = [68.toJS].toJS
+        ..rotation.x = pi / 4
+        ..speed = 0.2;
+    final cameraLabel = HTML.div()
+        ..style.position = "fixed"
+        ..style.top = "10px"
+        ..style.left = "10px"
+        ..style.color = "white"
+        ..style.fontFamily = "monospace"
+        ..style.backgroundColor = "rgba(0,0,0,0.5)"
+        ..style.padding = "6px";
+    final camposSC = StreamController<Pos>();
     
-    final v = 20;
+    HemisphericLight("light", Vector3(10, 10, 40), scene);
+    MeshBuilder.CreateGround("ground", GroundOptions(width: 140000, height: 140000), scene);
+
+    MeshBuilder
+        .CreateSphere("sphere", SphereOptions(diameter: 3), scene)
+        .position = Vector3(70000, 1, 40010);
+
+    camera.onViewMatrixChangedObservable.add(() {
+        camposSC.add(Pos(GC(camera.position.x), GC(camera.position.z)));
+    }.toJS);
     
-    runJs("""
-        const canvas = document.getElementById("renderCanvas");
-        const engine = new BABYLON.Engine(canvas, true);
+    document.body!.appendChild(cameraLabel);
 
-        const createScene = function () {
-            const scene = new BABYLON.Scene(engine);
+    scene.onBeforeRenderObservable.add(() {
+        final pos = camera.position;
+        cameraLabel.innerText =
+            "camera: x=${pos.x.toStringAsFixed(1)} "
+            "y=${pos.y.toStringAsFixed(1)} "
+            "z=${pos.z.toStringAsFixed(1)}";
+    }.toJS);
 
-            const camera = new BABYLON.FreeCamera("camera",
-                new BABYLON.Vector3(70000, $v, 40000),
-                scene
-            );
-            window.camera = camera
-            // Rotate camera downward 45 degrees
-            camera.rotation.x = Math.PI / 4;
+    scene.onBeforeRenderObservable.add(() {
+        camera.position.y = 20;
+        camera.position.x += 0.00000001;
+    }.toJS);
 
-            // Enable WASD movement
-            camera.keysUp.push(87);    // W
-            camera.keysDown.push(83);  // S
-            camera.keysLeft.push(65);  // A
-            camera.keysRight.push(68); // D
-            camera.attachControl(canvas, true);
-
-            // Light
-            const light = new BABYLON.HemisphericLight(
-                "light",
-                new BABYLON.Vector3(0, 1, 0),
-                scene
-            );
-
-            const greenMat = BABYLON.UnlitMaterial; //  new BABYLON.StandardMaterial("greenMat", scene);
-            // greenMat.diffuseColor = new BABYLON.Color3(0, 1, 0);
-
-            const idkcolorMat = new BABYLON.StandardMaterial("idkcolorMat", scene);
-            idkcolorMat.diffuseColor = new BABYLON.Color3(0.1, 0.1, 0.1);
-
-            // Ground plane
-            const ground = BABYLON.MeshBuilder.CreateGround("ground", {
-                width: 200000,
-                height: 200000
-            }, scene);
-
-            ground.material = idkcolorMat;
-
-            for (let i = 0; i < 5000; i++) {
-                const box = BABYLON.MeshBuilder.CreateBox("box" + i, { size: 1 }, scene);
-
-                // Random position within the larger ground
-                box.position.x = 70000 + (Math.random() - 0.5) * 200; // keep inside ground
-                box.position.z = 40000 + (Math.random() - 0.5) * 200;
-                box.position.y = 0.5;
-                box.material = greenMat;
-                // box.checkCollisions = true;
-            }
-
-            const player = BABYLON.MeshBuilder.CreateSphere("player", { diameter: 1 }, scene);
-            player.position = new BABYLON.Vector3(0, 0.5, 0);
-
-            const blueMat = new BABYLON.StandardMaterial("blueMat", scene);
-            blueMat.diffuseColor = new BABYLON.Color3(0, 0, 1);
-            player.material = blueMat;
-            // player.checkCollisions = true;
-
-            scene.onBeforeRenderObservable.add(() => {
-                camera.position.y = $v;
-            });
-
-            // Smooth movement: camera moves, player follows camera with collisions
-            scene.onBeforeRenderObservable.add(() => {
-                // Player follows camera horizontally
-                const targetPos = new BABYLON.Vector3(
-                    camera.position.x,
-                    0.5,
-                    camera.position.z + $v
-                );
-
-                const delta = targetPos.subtract(player.position);
-                player.moveWithCollisions(delta);
-            });
-
-            camera.speed = 0.2;
-            return scene;
-        };
-
-        const scene = createScene();
-
-        engine.runRenderLoop(function () {
-            scene.render();
-        });
-
-        window.addEventListener("resize", function () {
-            engine.resize();
-        });
-   
-""");
+    engine.runRenderLoop(() {
+        scene.render();
+    }.toJS);
+    return camposSC.stream.asBroadcastStream();
 }
 
 @Eff("*")
@@ -750,30 +741,33 @@ Future<HTMLElement> gameMain(E e, HTMLElement body) async {
     final canvLeftWH = (w: 640, h: 445);
     final canvRightWH = (w: 600, h: 400);
     final mlogic = MissionLogic.create(e.window.location.href);
+    final posStm = configBabylon();
+    final posObs = Observable(mlogic.p1InitPos, posStm);
     final mui = MissionUI.create(mlogic, e);
-    final p1 = PlayerPos.create(mlogic, keydown, keyup, frameStm);
-    final phud = PlayerHUD.create(p1.posStm);
+    // final p1 = PlayerPos.create(mlogic, keydown, keyup, frameStm);
+    final dirxyStm = Stream<DirXY>.empty();
+    final runningObs = Observable(false, Stream<bool>.empty());
+    final phud = PlayerHUD.create(posStm);
     final t1 = await SimpleOb.create("../assets/tx.png", mlogic.txpos, 30, Power(mW: 100), mlogic.mission != Mission.m1);
-    final sim = Sim.create(p1.posObs, t1.pos, t1.txpower!);
-    final bushes = await Objs.create(p1.posObs.latestVal, canvLeftWH.w, canvLeftWH.h);
-    final avatar = await Avatar.create(p1.dirxyStm, p1.runningObs, p1.posObs);
-    final reticle = Reticle(p1.posObs);
-    final road = Road(p1.posObs.latestVal);
+    final sim = Sim.create(posObs, t1.pos, t1.txpower!);
+    final bushes = await Objs.create(posObs.latestVal, canvLeftWH.w, canvLeftWH.h);
+    final avatar = await Avatar.create(dirxyStm, runningObs, posObs);
+    final reticle = Reticle(posObs);
+    final road = Road();
     final zoom = Zoom.create();
     final grid = Grid(zoom.scaleObs);
     final cmLife = CanvMLeft.create(canvLeftWH.w, canvLeftWH.h, []);
     final cmLob = CanvMRight.create(canvRightWH.w, canvRightWH.h, body.onMouseUp);
-    final lobc = LOBCol.create(keydown, sim.univLobs, cmLob.click, p1.posObs, zoom.scaleObs);
-    final msgs = Messages.create(mlogic, p1.dirxyStm);
+    final lobc = LOBCol.create(keydown, sim.univLobs, cmLob.click, posObs, zoom.scaleObs);
+    final msgs = Messages.create(mlogic, dirxyStm);
     final lrm = LeftRightM.create([road, avatar, bushes, t1], [lobc, grid], [reticle]); 
-    final pan = Pan.create(cmLob.mevStm, p1.posObs, p1.posStm, zoom.scaleObs);
-    final loser = Loser.create(mlogic, p1.posStm, e);
+    final pan = Pan.create(cmLob.mevStm, posObs, posStm, zoom.scaleObs);
+    final loser = Loser.create(mlogic, posStm, e);
     final walkAudio = HTMLAudioElement()..src = "../assets/game_sounds/walk_grass.wav";
     final walkSfx = WalkSfx(walkAudio);
-    babylonStuff();
-    p1.dirxyStm.listen((d) { walkSfx.update(!d.isZero, p1.runningObs.latestVal); });
-    cmLife.start(p1.posStm, lrm.leftObs, lrm.isMergedStm);
-    cmLob.start(p1.posStm, lrm.rightObs, lrm.isMergedStm, zoom.scaleObs, pan.center);
+    dirxyStm.listen((d) { walkSfx.update(!d.isZero, runningObs.latestVal); });
+    cmLife.start(posStm, lrm.leftObs, lrm.isMergedStm);
+    cmLob.start(posStm, lrm.rightObs, lrm.isMergedStm, zoom.scaleObs, pan.center);
     return assembleElems(cmLife, cmLob, tabletChildren: 
             [phud, lobc, mui, zoom, msgs, pan, lrm, msgs, loser]
     );

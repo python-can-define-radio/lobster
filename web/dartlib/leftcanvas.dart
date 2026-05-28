@@ -177,16 +177,13 @@ class Objs implements Drawable {
 }
 
 class Road implements Drawable {
-    Pos coloringCenter;
-
-    Road(this.coloringCenter);
-
     @override
     void draw(Cctx ctx, GridCC gridcc) {
+        final center = Pos(GC(70000), GC(40095));
         /// concrete part of road
         ctx.fillStyle = "#777".toJS;
-        gridcc.fillRectCent(coloringCenter + Pos(GC(5), GC(5)), 140 * gridcc.scale, 22000 * gridcc.scale, ctx);
-        gridcc.fillRectCent(coloringCenter + Pos(GC(10), GC(5)), 22000 * gridcc.scale, 140 * gridcc.scale, ctx);
+        gridcc.fillRectCent(center + Pos(GC(5), GC(5)), 140 * gridcc.scale, 22000 * gridcc.scale, ctx);
+        gridcc.fillRectCent(center + Pos(GC(10), GC(5)), 22000 * gridcc.scale, 140 * gridcc.scale, ctx);
 
         /// dashed center lines
         const yellow = "#f5d742";
@@ -197,14 +194,14 @@ class Road implements Drawable {
         ctx.setLineDash([dashlen.toJS, gaplen.toJS].toJS);
         /// vertical part
         gridcc.drawLine(
-            coloringCenter + Pos(GC(5), GC(-500)),
-            coloringCenter + Pos(GC(5), GC(500)),
+            center + Pos(GC(5), GC(-500)),
+            center + Pos(GC(5), GC(500)),
             ctx,
         );
         /// horizontal part
         gridcc.drawLine(
-            coloringCenter + Pos(GC(-500), GC(5)),
-            coloringCenter + Pos(GC(500), GC(5)),
+            center + Pos(GC(-500), GC(5)),
+            center + Pos(GC(500), GC(5)),
             ctx,
         );
         /// reset so other drawing isn't dashed
