@@ -94,8 +94,7 @@ Mission instructions:
 
 #############################################################################
 Settings expandable:
-    - potentially a setting to change all window gc edge markers to 5 digits
-    - other settings?
+    - what settings?
     - turn on background music
 
 #############################################################################
@@ -107,7 +106,7 @@ Settings expandable:
     - competition mode (same computer):
         - First player places transmitter
         - second player plays
-    - Uploadable map (Edit in text editor like notepad)
+    - Uploadable map ***and mission details*** (Edit in text editor like notepad)
         - Doesn't have much value until there are real obstacles that change how LOBs are received
         - Would be good to do a bit of extra testing on this since it's a security attack vector
           (if the game got popular enough to have maps uploaded online, we need to make sure the
@@ -173,7 +172,7 @@ https://opengameart.org/content/cars-trucks-and-a-limo
 possible jeep to put the tx on its a spritesheet so we can animate it
 https://opengameart.org/content/pixel-art-jeep
 
-possible sound to use for the car7
+possible sound to use for the car
 https://opengameart.org/content/engine-loop-heavy-vehicletank
 
 possible building tileset
