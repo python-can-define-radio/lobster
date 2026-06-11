@@ -6,7 +6,7 @@ import 'dart:async';
 import 'dart:js_interop';
 import 'dart:math' hide e;
 import 'package:meta/meta.dart';
-import 'package:web/web.dart';  /// TODO: hide document, window
+import 'package:web/web.dart' hide document, window;
 import '../dartlib/coordinates.dart';
 import '../dartlib/generic.dart';
 import '../dartlib/htmlhelp.dart';
@@ -21,53 +21,68 @@ class Consts {
 
 
 
-// class PlayerPos {
-//     final Stream<DirXY> dirxyStm;
-//     // final Observable<Pos> posObs;
-//     final Observable<bool> runningObs;
+class PlayerPos {
+    final Stream<DirXY> dirxyStm;
+    final Stream<Pos> posStm;
+    final Observable<Pos> posObs;
+    final Observable<bool> runningObs;
 
-//     PlayerPos(this.dirxyStm, this.runningObs);
+    PlayerPos(this.dirxyStm, this.posStm, this.posObs, this.runningObs);
     
-//     @factory
-//     static PlayerPos create(MissionLogic mlogic, KbStm keydown, KbStm keyup, DuStm tdelta) {
-//         final pressedStm = _makePressed(keydown, keyup);
-//         final dirxyStm = _makeDirXY(pressedStm);
-//         final runningObs = _makeRunning(pressedStm);
-//         /// Temporarily disabled during Babylon migration
-//         // final posStm = _makePos(mlogic.p1InitPos, tdelta, dirxyStm, runningObs);
-//         final posStm = bPosStm();
-//         final posObs = Observable(mlogic.p1InitPos, posStm);
-//         return PlayerPos(dirxyStm, runningObs);
-//     }
+    @factory
+    static PlayerPos create(MissionLogic mlogic, KbStm keydown, KbStm keyup, DuStm tdelta) {
+        final pressedStm = _makePressed(keydown, keyup);
+        final dirxyStm = _makeDirXY(pressedStm);
+        final runningObs = _makeRunning(pressedStm);
+        final posStm = _makePos(mlogic.p1InitPos, tdelta, dirxyStm, runningObs);
+        final posObs = Observable(mlogic.p1InitPos, posStm);
+        return PlayerPos(dirxyStm, posStm, posObs, runningObs);
+    }
 
-//     static Observable<bool> _makeRunning(Stream<ImmuSet<String>> pressedStm) {
-//         final stm = pressedStm.map((pressed) =>
-//             pressed.contains("ShiftLeft") || pressed.contains("ShiftRight")
-//         );
-//         return Observable(false, stm);
-//     }
+    static Stream<ImmuSet<String>> _makePressed(KbStm keydown, KbStm keyup) {
+        final pressed = <String>{};
+        final sc = StreamController<ImmuSet<String>>.broadcast();
+        keydown.listen((ev) {
+            if (!ev.repeat) {
+                pressed.add(ev.code);
+                sc.add(ImmuSet(pressed));
+            }
+        });
+        keyup.listen((ev) {
+            pressed.remove(ev.code);
+            sc.add(ImmuSet(pressed));
+        });
+        return sc.stream.asBroadcastStream();
+    }
 
-//     static Stream<DirXY> _makeDirXY(Stream<ImmuSet<String>> pressedStm) {
-//         return pressedStm
-//             .map((pressed) => DirXY.fromPressed(pressed))
-//             .asBroadcastStream();
-//     }
+    static Observable<bool> _makeRunning(Stream<ImmuSet<String>> pressedStm) {
+        final stm = pressedStm.map((pressed) =>
+            pressed.contains("ShiftLeft") || pressed.contains("ShiftRight")
+        );
+        return Observable(false, stm);
+    }
 
-//     static Stream<Pos> _makePos(Pos initPos, DuStm tdelta, Stream<DirXY> dirxyStm, Observable<bool> runningObs) {
-//         final dirxyObs = Observable(DirXY(0, 0), dirxyStm);
-//         return tdelta.scan(
-//             initPos, (prev, dt) => _computeNewPos(prev, dt, dirxyObs.latestVal, runningObs.latestVal)
-//         ).asBroadcastStream();
-//     }
+    static Stream<DirXY> _makeDirXY(Stream<ImmuSet<String>> pressedStm) {
+        return pressedStm
+            .map((pressed) => DirXY.fromPressed(pressed))
+            .asBroadcastStream();
+    }
+
+    static Stream<Pos> _makePos(Pos initPos, DuStm tdelta, Stream<DirXY> dirxyStm, Observable<bool> runningObs) {
+        final dirxyObs = Observable(DirXY(0, 0), dirxyStm);
+        return tdelta.scan(
+            initPos, (prev, dt) => _computeNewPos(prev, dt, dirxyObs.latestVal, runningObs.latestVal)
+        ).asBroadcastStream();
+    }
     
-//     static Pos _computeNewPos(Pos prev, Duration dt, DirXY dirxy, bool running) {
-//         const baseSpeed = 2.0 * 0.001;
-//         final speed = running ? baseSpeed * 2 : baseSpeed;
-//         final dist = speed * dt.inMilliseconds;
-//         final (xdiff, ydiff) = (dist * dirxy.horiz, dist * dirxy.vert);
-//         return (prev + Pos(GC(xdiff), GC(ydiff)));
-//     }
-// }
+    static Pos _computeNewPos(Pos prev, Duration dt, DirXY dirxy, bool running) {
+        const baseSpeed = 2.0 * 0.001;
+        final speed = running ? baseSpeed * 2 : baseSpeed;
+        final dist = speed * dt.inMilliseconds;
+        final (xdiff, ydiff) = (dist * dirxy.horiz, dist * dirxy.vert);
+        return (prev + Pos(GC(xdiff), GC(ydiff)));
+    }
+}
 
 class PlayerHUD with Displayable {
     @override
@@ -679,59 +694,59 @@ extension type SphereOptions._(JSObject _) implements JSObject {
     external num get diameter;
 }
 
-Stream<Pos> configBabylon() {
-    final canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
-    final engine = Engine(canvas, true);
-    final scene = Scene(engine);
-    final camera = UniversalCamera("camera1", Vector3(70000, 10, 40000), scene)
-        ..attachControl(canvas, true)
-        ..keysUp = [87.toJS].toJS
-        ..keysDown = [83.toJS].toJS 
-        ..keysLeft = [65.toJS].toJS 
-        ..keysRight = [68.toJS].toJS
-        ..rotation.x = pi / 4
-        ..speed = 0.2;
-    final cameraLabel = HTML.div()
-        ..style.position = "fixed"
-        ..style.top = "10px"
-        ..style.left = "10px"
-        ..style.color = "white"
-        ..style.fontFamily = "monospace"
-        ..style.backgroundColor = "rgba(0,0,0,0.5)"
-        ..style.padding = "6px";
-    final camposSC = StreamController<Pos>();
+// Stream<Pos> configBabylon() {
+//     final canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
+//     final engine = Engine(canvas, true);
+//     final scene = Scene(engine);
+//     final camera = UniversalCamera("camera1", Vector3(70000, 10, 40000), scene)
+//         ..attachControl(canvas, true)
+//         ..keysUp = [87.toJS].toJS
+//         ..keysDown = [83.toJS].toJS 
+//         ..keysLeft = [65.toJS].toJS 
+//         ..keysRight = [68.toJS].toJS
+//         ..rotation.x = pi / 4
+//         ..speed = 0.2;
+//     final cameraLabel = HTML.div()
+//         ..style.position = "fixed"
+//         ..style.top = "10px"
+//         ..style.left = "10px"
+//         ..style.color = "white"
+//         ..style.fontFamily = "monospace"
+//         ..style.backgroundColor = "rgba(0,0,0,0.5)"
+//         ..style.padding = "6px";
+//     final camposSC = StreamController<Pos>();
     
-    HemisphericLight("light", Vector3(10, 10, 40), scene);
-    MeshBuilder.CreateGround("ground", GroundOptions(width: 140000, height: 140000), scene);
+//     HemisphericLight("light", Vector3(10, 10, 40), scene);
+//     MeshBuilder.CreateGround("ground", GroundOptions(width: 140000, height: 140000), scene);
 
-    MeshBuilder
-        .CreateSphere("sphere", SphereOptions(diameter: 3), scene)
-        .position = Vector3(70000, 1, 40010);
+//     MeshBuilder
+//         .CreateSphere("sphere", SphereOptions(diameter: 3), scene)
+//         .position = Vector3(70000, 1, 40010);
 
-    camera.onViewMatrixChangedObservable.add(() {
-        camposSC.add(Pos(GC(camera.position.x), GC(camera.position.z)));
-    }.toJS);
+//     camera.onViewMatrixChangedObservable.add(() {
+//         camposSC.add(Pos(GC(camera.position.x), GC(camera.position.z)));
+//     }.toJS);
     
-    document.body!.appendChild(cameraLabel);
+//     document.body!.appendChild(cameraLabel);
 
-    scene.onBeforeRenderObservable.add(() {
-        final pos = camera.position;
-        cameraLabel.innerText =
-            "camera: x=${pos.x.toStringAsFixed(1)} "
-            "y=${pos.y.toStringAsFixed(1)} "
-            "z=${pos.z.toStringAsFixed(1)}";
-    }.toJS);
+//     scene.onBeforeRenderObservable.add(() {
+//         final pos = camera.position;
+//         cameraLabel.innerText =
+//             "camera: x=${pos.x.toStringAsFixed(1)} "
+//             "y=${pos.y.toStringAsFixed(1)} "
+//             "z=${pos.z.toStringAsFixed(1)}";
+//     }.toJS);
 
-    scene.onBeforeRenderObservable.add(() {
-        camera.position.y = 20;
-        camera.position.x += 0.00000001;
-    }.toJS);
+//     scene.onBeforeRenderObservable.add(() {
+//         camera.position.y = 20;
+//         camera.position.x += 0.00000001;
+//     }.toJS);
 
-    engine.runRenderLoop(() {
-        scene.render();
-    }.toJS);
-    return camposSC.stream.asBroadcastStream();
-}
+//     engine.runRenderLoop(() {
+//         scene.render();
+//     }.toJS);
+//     return camposSC.stream.asBroadcastStream();
+// }
 
 @Eff("*")
 Future<HTMLElement> gameMain(E e, HTMLElement body) async {
@@ -741,33 +756,30 @@ Future<HTMLElement> gameMain(E e, HTMLElement body) async {
     final canvLeftWH = (w: 640, h: 445);
     final canvRightWH = (w: 600, h: 400);
     final mlogic = MissionLogic.create(e.window.location.href);
-    final posStm = configBabylon();
-    final posObs = Observable(mlogic.p1InitPos, posStm);
+    // final posStm = configBabylon();
     final mui = MissionUI.create(mlogic, e);
-    // final p1 = PlayerPos.create(mlogic, keydown, keyup, frameStm);
-    final dirxyStm = Stream<DirXY>.empty();
-    final runningObs = Observable(false, Stream<bool>.empty());
-    final phud = PlayerHUD.create(posStm);
+    final p1 = PlayerPos.create(mlogic, keydown, keyup, frameStm);
+    final phud = PlayerHUD.create(p1.posStm);
     final t1 = await SimpleOb.create("../assets/tx.png", mlogic.txpos, 30, Power(mW: 100), mlogic.mission != Mission.m1);
-    final sim = Sim.create(posObs, t1.pos, t1.txpower!);
-    final bushes = await Objs.create(posObs.latestVal, canvLeftWH.w, canvLeftWH.h);
-    final avatar = await Avatar.create(dirxyStm, runningObs, posObs);
-    final reticle = Reticle(posObs);
+    final sim = Sim.create(p1.posObs, t1.pos, t1.txpower!);
+    final bushes = await Objs.create(p1.posObs.latestVal, canvLeftWH.w, canvLeftWH.h);
+    final avatar = await Avatar.create(p1.dirxyStm, p1.runningObs, p1.posObs);
+    final reticle = Reticle(p1.posObs);
     final road = Road();
     final zoom = Zoom.create();
     final grid = Grid(zoom.scaleObs);
     final cmLife = CanvMLeft.create(canvLeftWH.w, canvLeftWH.h, []);
     final cmLob = CanvMRight.create(canvRightWH.w, canvRightWH.h, body.onMouseUp);
-    final lobc = LOBCol.create(keydown, sim.univLobs, cmLob.click, posObs, zoom.scaleObs);
-    final msgs = Messages.create(mlogic, dirxyStm);
+    final lobc = LOBCol.create(keydown, sim.univLobs, cmLob.click, p1.posObs, zoom.scaleObs);
+    final msgs = Messages.create(mlogic, p1.dirxyStm);
     final lrm = LeftRightM.create([road, avatar, bushes, t1], [lobc, grid], [reticle]); 
-    final pan = Pan.create(cmLob.mevStm, posObs, posStm, zoom.scaleObs);
-    final loser = Loser.create(mlogic, posStm, e);
+    final pan = Pan.create(cmLob.mevStm, p1.posObs, p1.posStm, zoom.scaleObs);
+    final loser = Loser.create(mlogic, p1.posStm, e);
     final walkAudio = HTMLAudioElement()..src = "../assets/game_sounds/walk_grass.wav";
     final walkSfx = WalkSfx(walkAudio);
-    dirxyStm.listen((d) { walkSfx.update(!d.isZero, runningObs.latestVal); });
-    cmLife.start(posStm, lrm.leftObs, lrm.isMergedStm);
-    cmLob.start(posStm, lrm.rightObs, lrm.isMergedStm, zoom.scaleObs, pan.center);
+    p1.dirxyStm.listen((d) { walkSfx.update(!d.isZero, p1.runningObs.latestVal); });
+    cmLife.start(p1.posStm, lrm.leftObs, lrm.isMergedStm);
+    cmLob.start(p1.posStm, lrm.rightObs, lrm.isMergedStm, zoom.scaleObs, pan.center);
     return assembleElems(cmLife, cmLob, tabletChildren: 
             [phud, lobc, mui, zoom, msgs, pan, lrm, msgs, loser]
     );
