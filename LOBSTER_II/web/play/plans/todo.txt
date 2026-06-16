@@ -2,9 +2,7 @@
 Next steps (overview) -- details for each below in same order
 
 1 week
-- mission selection page
 - HUD elements from Dart
-- controls, credits, license
 - images from Dart
 - header at top
 - settings dropdown
@@ -18,11 +16,7 @@ Next steps (overview) -- details for each below in same order
 #############################################################################
 #############################################################################
 ##########                         1 week                          ##########
-#############################################################################
-#############################################################################
-- mission selection page
-    - copy it 
-    
+#############################################################################    
 #############################################################################
 - HUD elements from Dart:
     - clear-lobs button (wolverine) 
@@ -34,15 +28,10 @@ Next steps (overview) -- details for each below in same order
     - road; bush images
 
 #############################################################################
-- controls, credits, license:
-    - put a link to the existing pages (wolverine)
-
-#############################################################################
 - images from Dart
     - avatar images
         - walking animation
     - input and submit
-
 
 #############################################################################
 - settings dropdown
