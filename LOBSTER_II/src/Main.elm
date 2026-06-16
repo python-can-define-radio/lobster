@@ -5,22 +5,12 @@ import Browser.Events
 import Canvas exposing (Point, Renderable, Shape, lineTo, path, rect, shapes)
 import Canvas.Settings exposing (fill, stroke)
 import Color
-import Html exposing (Html, div, p, text)
-import Html.Attributes exposing (style)
+import Html exposing (Html, div, text)
 import Json.Decode as Decode
 import Html.Attributes exposing (class)
 
-type alias Model =
-    { x : Float, y : Float, vx : Float, vy : Float, lobs : List Lob }
-
-type alias Lob =
-    { source : Point, target : Point }
-
-type alias WorldU = Float
-type alias Vel = Float
-type alias CU = Float
-type alias Ms = Float
-type alias DistPerMs = Float
+type alias Model = { x : Float, y : Float, vx : Float, vy : Float, lobs : List Lob }
+type alias Lob = { source : Point, target : Point }
 
 type Msg
     = KeyDown String
@@ -30,11 +20,8 @@ type Msg
 initialModel : Model
 initialModel = { x = 100, y = 100, vx = 0, vy = 0, lobs = [] }
 
-speed : DistPerMs
-speed = 0.2
-
-playerSize : CU
-playerSize = 50
+distperMs : Float
+distperMs = 0.2
 
 canvW : Int
 canvW = 600
@@ -42,32 +29,29 @@ canvW = 600
 canvH : Int
 canvH = 400
 
-setVx : Model -> Vel -> Model
+setVx : Model -> Float -> Model
 setVx m v = { m | vx = v }
 
-setVy : Model -> Vel -> Model
+setVy : Model -> Float -> Model
 setVy m v = { m | vy = v }
 
-move : Ms -> Model -> Model
-move dt m = { m | x = m.x + m.vx * speed * dt, y = m.y + m.vy * speed * dt }
+move : Float -> Model -> Model
+move dt m = { m | x = m.x + m.vx * distperMs * dt, y = m.y + m.vy * distperMs * dt }
 
-timestep : Ms -> Model -> Model
+timestep : Float -> Model -> Model
 timestep dt m = recordLob (move dt m)
 
-centerX : CU
+centerX : Float
 centerX = toFloat canvW / 2
 
-centerY : CU
+centerY : Float
 centerY = toFloat canvH / 2
 
-worldToCU : Model -> WorldU -> WorldU -> ( CU, CU )
+worldToCU : Model -> Float -> Float -> ( Float, Float )
 worldToCU m wx wy = ( centerX + (wx - m.x), centerY + (wy - m.y) )
 
-worldToCUPoint : Model -> Point -> ( CU, CU )
+worldToCUPoint : Model -> Point -> ( Float, Float )
 worldToCUPoint m ( px, py ) = worldToCU m px py
-
-playerCU : Model -> Point
-playerCU m = worldToCU m m.x m.y
 
 posText : Model -> String
 posText m =
@@ -102,25 +86,25 @@ handleDown k m =
 view : Model -> Html Msg
 view m =
     div []
-        [ div canvWrapperStyles
+        [ div [class "two-canvasses"]
             [ worldView m
             , tabletView m
             ]
-        , p [] [ text (posText m) ]
-        ]
-
-tabletView : Model -> Html Msg
-tabletView m =
-    div [ class "hudwrap" ] [
-        div [ class "hud" ]
-            [ Canvas.toHtml ( canvW, canvH ) [] (tabletScene m) ]
         ]
 
 worldView : Model -> Html Msg
 worldView m =
     div [ class "life"] [
-        Canvas.toHtml ( canvW, canvH ) worldStyles (worldScene m)
+        Canvas.toHtml ( canvW, canvH ) [] (worldScene m)
     ]
+
+tabletView : Model -> Html Msg
+tabletView m =
+    div [ class "hudwrap" ] [
+        div [ class "hud" ]
+            [ Canvas.toHtml ( canvW, canvH ) [] (tabletScene m)
+            , div [class "player-pos"] [text (posText m)] ]
+        ]
 
 worldScene : Model -> List Renderable
 worldScene m =
@@ -151,11 +135,17 @@ bushView m ( bx, by ) =
     shapes [ fill Color.green ]
         [ rect ( worldToCU m bx by ) 20 20 ]
 
+centeredSq : Float -> Float -> Float -> Shape
+centeredSq x y size = 
+    let
+        xShifted = x - size / 2
+        yShifted = y - size / 2 in
+        rect (xShifted, yShifted) size size
+
 playerView : List Renderable
-playerView =
+playerView = let avSize = 30 in
     [ shapes [ fill Color.blue ]
-        [ rect ( centerX - playerSize / 2, centerY - playerSize / 2 )
-            playerSize playerSize ] ]
+        [ centeredSq centerX centerY avSize ] ]
 
 axesView : Model -> List Renderable
 axesView m =
@@ -190,39 +180,6 @@ subscriptions _ =
             (Decode.map KeyUp (Decode.field "key" Decode.string))
         , Browser.Events.onAnimationFrameDelta Tick
         ]
-
--- styles
-canvWrapperStyles : List (Html.Attribute Msg)
-canvWrapperStyles =
-    [ style "display" "flex"
-    , style "gap" "24px"
-    , style "align-items" "flex-start"
-    ]
-
--- tabletDeviceStyles : List (Html.Attribute Msg)
--- tabletDeviceStyles =
---     [ style "background-color" "#2f3136"
---     , style "padding" "16px"
---     , style "border-radius" "24px"
---     , style "box-shadow" "0px 8px 20px rgba(0,0,0,0.45)"
---     , style "position" "relative"
---     ]
-
--- tabletScreenStyles : List (Html.Attribute Msg)
--- tabletScreenStyles = []
-    -- [ style "background-color" "#1a1a1a"
-    -- , style "padding" "4px"
-    -- , style "border-radius" "4px"
-    -- , style "overflow" "hidden"
-    -- , style "box-shadow" "inset 0px 0px 4px rgba(0,0,0,0.5)"
-    -- ]
-
-worldStyles : List (Html.Attribute Msg)
-worldStyles =
-    [ style "background-color" "#0b0b0b"
-    , style "border" "2px solid black"
-    , style "display" "block"
-    ]
 
 main : Program () Model Msg
 main =
