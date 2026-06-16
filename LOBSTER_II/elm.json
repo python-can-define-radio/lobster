@@ -1,7 +1,7 @@
 {
     "type": "application",
     "source-directories": [
-        "src"
+        "web/play"
     ],
     "elm-version": "0.19.1",
     "dependencies": {

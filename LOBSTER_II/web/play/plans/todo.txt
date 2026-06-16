@@ -2,10 +2,15 @@
 Next steps (overview) -- details for each below in same order
 
 1 week
-
+- mission selection page
+- HUD elements from Dart
+- controls, credits, license
+- images from Dart
+- header at top
+- settings dropdown
 
 1 month:
-
+- sound fx
 
 3 months:
 
@@ -15,26 +20,39 @@ Next steps (overview) -- details for each below in same order
 ##########                         1 week                          ##########
 #############################################################################
 #############################################################################
+- mission selection page
+    - copy it 
+    
+#############################################################################
+- HUD elements from Dart:
+    - clear-lobs button (wolverine) 
+    - toggle gathering lobs (wolverine) 
+    - Messages button (wolverine) 
+    - Merge button (together)
+    - zoom in, zoom out, pan (together)
+    - Lob power placement (wolverine); better LOB simulation (together)
+    - road; bush images
+
+#############################################################################
+- controls, credits, license:
+    - put a link to the existing pages (wolverine)
+
+#############################################################################
+- images from Dart
+    - avatar images
+        - walking animation
+    - input and submit
 
 
 #############################################################################
-
-
-#############################################################################
-
-
-#############################################################################
-
-
-#############################################################################
-
+- settings dropdown
 
 #############################################################################
 #############################################################################
 ##########                        1 month                          ##########
 #############################################################################
 #############################################################################
-
+- sound fx
 
 #############################################################################
 

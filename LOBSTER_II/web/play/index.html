@@ -7,11 +7,12 @@
     <script src="https://unpkg.com/elm-canvas@2.2.4/elm-canvas.js"></script>
 </head>
 <body>
-    <main></main>
-    <script src="build/Main.js"></script>
-        <script>
-                var app = Elm.Main.init({ node: document.querySelector('main') })
-                // you can use ports and stuff here
-        </script>
+    <h1>LOBSTER</h1>
+    <div id="gameroot"></div>
+    <script src="Main.js"></script>
+    <script>
+            var app = Elm.Main.init({ node: document.querySelector('#gameroot') })
+            // you can use ports and stuff here
+    </script>
     </body>
 </html>
