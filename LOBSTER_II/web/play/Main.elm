@@ -5,8 +5,9 @@ import Browser.Events
 import Canvas exposing (Point, Renderable, Shape, lineTo, path, rect, shapes)
 import Canvas.Settings exposing (fill, stroke)
 import Color
-import Html exposing (Html, button, div, i, text)
+import Html exposing (Html, button, div, i, text, p)
 import Html.Attributes exposing (class)
+import Html.Events exposing (onClick)
 import Json.Decode as Decode
 
 
@@ -17,6 +18,7 @@ type alias Model =
     , lobs : List Lob
     , panCenter : Maybe WPoint
     , isMouseDown : Bool
+    , showMessages : Bool
     }
 
 
@@ -45,6 +47,7 @@ type Msg
     | MouseDown
     | MouseMove (Float, Float)
     | MouseUp
+    | ToggleMessages
 
 
 initialModel : Model
@@ -55,6 +58,7 @@ initialModel =
     , lobs = []
     , panCenter = Nothing
     , isMouseDown = False
+    , showMessages = False
     }
 
 
@@ -141,6 +145,9 @@ update msg model =
         MouseMove (dx, dy) ->
             handleMouseMove dx dy model
 
+        ToggleMessages ->
+            ( { model | showMessages = not model.showMessages }, Cmd.none )
+
 
 handleMouseMove : Float -> Float -> Model -> ( Model, Cmd Msg )
 handleMouseMove dx dy m =
@@ -215,7 +222,7 @@ view m =
 lifeView : Model -> Html Msg
 lifeView m =
     div [ class "life" ]
-        [ Canvas.toHtml ( canvW, canvH ) [] (lifeScene m)
+        [ Canvas.toHtml (canvW, canvH) [] (lifeScene m)
         ]
 
 
@@ -224,9 +231,10 @@ tabletView m =
     div [ class "hudwrap" ]
         [ div [ class "tablet-area" ]
             [ div [ class "hud" ]
-                [ Canvas.toHtml ( canvW, canvH ) [] (tabletScene m)
+                [ Canvas.toHtml (canvW, canvH) [] (tabletScene m)
                 , div [ class "player-pos" ] [ text (posText m) ]
                 , tabletButtons
+                , messagesOverlay m
                 ]
             ]
         ]
@@ -280,8 +288,33 @@ tabletButtons =
         [ iconButton "fa-solid fa-object-group fa-2x"
         , iconButton "fa-solid fa-magnifying-glass-plus fa-2x"
         , iconButton "fa-solid fa-magnifying-glass-minus fa-2x"
-        , iconButton "fa-solid fa-envelope fa-2x"
+        , messageButton
         ]
+
+
+messageButton : Html Msg
+messageButton =
+    button [ class "game-btn", onClick ToggleMessages ]
+        [ i [ class "fa-solid fa-envelope fa-2x" ] []
+        ]
+
+
+messagesOverlay : Model -> Html Msg
+messagesOverlay m =
+    if m.showMessages then
+        div [ class "overlay" ]
+            [ button [ class "backbtn game-btn", onClick ToggleMessages ]
+                [ i [ class "fa-solid fa-chevron-left fa-2x" ] []
+                ]
+            , div [ class "mission-message" ]
+                [ 
+                    i [ class "fa-regular fa-user fa-3x"] []
+                    , p [] [text "Mission Update :: Recover the lost signal beacon near the northern ridge." ] 
+                ]
+            ] 
+
+    else
+        div [ class "hidden" ] []
 
 
 iconButton : String -> Html Msg
@@ -290,7 +323,7 @@ iconButton iconName =
         [ i [ class iconName ] []
         ]
 
-        
+
 bushes : List WPoint
 bushes =
     [ { x = 200, y = 300 }
@@ -326,9 +359,7 @@ oRect center p w h =
 centeredSq : CPoint -> Float -> Shape
 centeredSq p size =
     rect
-        ( p.cx - size / 2
-        , p.cy - size / 2
-        )
+        (p.cx - size / 2, p.cy - size / 2)
         size
         size
 

@@ -204,11 +204,12 @@ h1 {
 
 .overlay {
     position: absolute;
-    top: 20px;
-    left: 20px;
-    width: 605px;
-    height: 405px;
+    top: 0;
+    left: 0;
+    width: 600px;
+    height: 400px;
     background-color: #0a0f14;
+    z-index: 10;
 }
 
 .hidden {
@@ -217,15 +218,16 @@ h1 {
 
 .backbtn {
     position: absolute;
-    top: 0px;
-    left: 0px;
+    top: 10px;
+    left: 10px;
+    z-index: 11;
 }
 
 
 .mission-message {
     font-family: 'Courier New', Courier, monospace;
-    font-size: medium;
-    margin-left: 20px;
+    margin-left: 60px;
+    margin-top: 50px;
 }
 
 .links {
