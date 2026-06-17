@@ -68,12 +68,11 @@ timestep : Float -> Model -> Model
 timestep dt m = move dt m
     -- recordLob (move dt m)
 
--- Given a center and a position in world coordinates, convert to canvas units
--- worldToCU : WPoint -> Float -> Float -> ( Float, Float )
--- worldToCU center wx wy = ( wx - center.x, wy - center.y )
-
--- worldToCUPoint : Point -> Point -> ( Float, Float )
--- worldToCUPoint center ( px, py ) = worldToCU center px py
+worldToCanvas : WPoint -> WPoint -> CPoint
+worldToCanvas center p =
+    { cx = p.x - center.x + toFloat canvW / 2
+    , cy = center.y - p.y + toFloat canvH / 2
+    }
 
 posText : Model -> String
 posText m =
@@ -101,8 +100,7 @@ computeNewPanCenter dx dy m =
     case m.panCenter of 
         Just x -> Just { x = 0, y = 0 }
         Nothing -> Just { x = 0, y = 0 }
--- { x = m.panCenter.x + dx, y = m.panCenter.y + dy }
-
+todoForNewPanCenter = "possible idea:  x + dx, y + dy"
 
 handleUp : String -> Model -> Model
 handleUp k m =
@@ -116,8 +114,8 @@ handleUp k m =
 handleDown : String -> Model -> Model
 handleDown k m =
     case String.toLower k of
-        "w" -> setVy m -1
-        "s" -> setVy m 1
+        "w" -> setVy m 1
+        "s" -> setVy m -1
         "a" -> setVx m -1
         "d" -> setVx m 1
         _ -> m
@@ -156,8 +154,8 @@ tabletScene m =
         c = m.player
     in 
         tabletBckgrd ++ bushesView m c ++ playerView
-        -- ++ axesView c
-        -- ++ lobsView m
+todoForTabletScene = "++ axesView c ++ lobsView m"
+
 
 lifeBckgrd : List Renderable
 lifeBckgrd =
@@ -173,23 +171,17 @@ bushes : List WPoint
 bushes = [ { x = 200, y = 300 }, { x = 400, y = 150 }, { x = 0, y = 0}, { x = -100, y = -100}, { x = 100, y = 100}, { x = -100, y = 100}, { x = 100, y = -100} ]
 
 bushesView : Model -> WPoint -> List Renderable
-bushesView m center = List.map (bushView center) bushes
+bushesView m center = List.map (bushView m center) bushes
 
-bushView : WPoint -> WPoint -> Renderable
-bushView center bushLoc =
+bushView : Model -> WPoint -> WPoint -> Renderable
+bushView m center bushLoc =
     shapes [ fill Color.green ]
         [ oRect center bushLoc 20 20 ]
 
--- Offset Rectangle. Same as the `rect` from the drawing library but 
--- subtracts the center
 oRect : WPoint -> WPoint -> Float -> Float -> Shape
 oRect center p w h =
-    rect
-        ( p.x - center.x + toFloat canvW / 2
-        , p.y - center.y + toFloat canvH / 2
-        )
-        w
-        h
+    let cp = worldToCanvas center p
+    in rect (cp.cx, cp.cy) w h
 
 centeredSq : CPoint -> Float -> Shape
 centeredSq p size = 
@@ -207,6 +199,7 @@ playerView =
         [ shapes [ fill Color.blue ]
             [ centeredSq halfCanv avSize ] ]
 
+stuffToBringBackAxesEtc = """
 -- axesView : Point -> List Renderable
 -- axesView c =
    --  [ shapes [ stroke Color.white ]
@@ -227,6 +220,7 @@ playerView =
 
 -- recordLob : Model -> Model
 -- recordLob m = { m | lobs = currentLob m :: m.lobs }
+"""
 
 drawLine : Point -> Point -> Shape
 drawLine start end = path start [ lineTo end ]

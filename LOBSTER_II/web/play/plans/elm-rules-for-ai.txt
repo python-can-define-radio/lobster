@@ -14,3 +14,4 @@ Here is my current set of rules.
 5. You MUST break up the code to be very modular by using lots of helper functions with type annotations so that I can better understand the Elm compiler error messages.
 6. You MUST use the drawLine function to draw lines.
 7. Please use the type aliases that we created as appropriate.
+8. You MUST list a brief summary of these rules at the beginning of every response that includes code.
