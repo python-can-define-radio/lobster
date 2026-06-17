@@ -9,16 +9,40 @@ import Html exposing (Html, div, text)
 import Json.Decode as Decode
 import Html.Attributes exposing (class)
 
-type alias Model = { x : Float, y : Float, vx : Float, vy : Float, lobs : List Lob }
+type alias Model = 
+    { player : WPoint
+    , vx : Float
+    , vy : Float
+    , lobs : List Lob
+    , panCenter : Maybe WPoint
+    , isMouseDown : Bool
+    }
+
+-- World units Point
+type alias WPoint = { x : Float, y : Float }
+
+-- Canvas units Point
+type alias CPoint = { cx : Float, cy : Float }
+
 type alias Lob = { source : Point, target : Point }
 
 type Msg
     = KeyDown String
     | KeyUp String
     | Tick Float
+    | MouseDown (Float, Float)
+    | MouseMove (Float, Float)
+    | MouseUp
 
 initialModel : Model
-initialModel = { x = 100, y = 100, vx = 0, vy = 0, lobs = [] }
+initialModel = 
+    { player = { x = 100, y = 100 }
+    , vx = 0
+    , vy = 0
+    , lobs = []
+    , panCenter = Nothing
+    , isMouseDown = False
+    }
 
 distperMs : Float
 distperMs = 0.2
@@ -36,27 +60,25 @@ setVy : Model -> Float -> Model
 setVy m v = { m | vy = v }
 
 move : Float -> Model -> Model
-move dt m = { m | x = m.x + m.vx * distperMs * dt, y = m.y + m.vy * distperMs * dt }
+move dt m = { m | player = 
+                { x = m.player.x + m.vx * distperMs * dt, y = m.player.y + m.vy * distperMs * dt }
+            }
 
 timestep : Float -> Model -> Model
-timestep dt m = recordLob (move dt m)
+timestep dt m = move dt m
+    -- recordLob (move dt m)
 
-centerX : Float
-centerX = toFloat canvW / 2
+-- Given a center and a position in world coordinates, convert to canvas units
+-- worldToCU : WPoint -> Float -> Float -> ( Float, Float )
+-- worldToCU center wx wy = ( wx - center.x, wy - center.y )
 
-centerY : Float
-centerY = toFloat canvH / 2
-
-worldToCU : Model -> Float -> Float -> ( Float, Float )
-worldToCU m wx wy = ( centerX + (wx - m.x), centerY + (wy - m.y) )
-
-worldToCUPoint : Model -> Point -> ( Float, Float )
-worldToCUPoint m ( px, py ) = worldToCU m px py
+-- worldToCUPoint : Point -> Point -> ( Float, Float )
+-- worldToCUPoint center ( px, py ) = worldToCU center px py
 
 posText : Model -> String
 posText m =
-    "x: " ++ String.fromInt (round m.x)
-    ++ ", y: " ++ String.fromInt (round m.y)
+    "x: " ++ String.fromInt (round m.player.x)
+    ++ ", y: " ++ String.fromInt (round m.player.y)
     
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -64,6 +86,23 @@ update msg model =
         KeyDown k -> ( handleDown k model, Cmd.none )
         KeyUp k -> ( handleUp k model, Cmd.none )
         Tick dt -> ( timestep dt model, Cmd.none )
+        MouseDown _ -> ( { model | isMouseDown = True }, Cmd.none )
+        MouseUp -> ( { model | isMouseDown = False }, Cmd.none )
+        MouseMove (dx, dy) -> handleMouseMove dx dy model
+
+handleMouseMove : Float -> Float -> Model -> ( Model, Cmd Msg)
+handleMouseMove dx dy m =
+    if m.isMouseDown
+    then ( { m | panCenter = computeNewPanCenter dx dy m }, Cmd.none )
+    else ( m, Cmd.none )
+
+computeNewPanCenter : Float -> Float -> Model -> Maybe WPoint
+computeNewPanCenter dx dy m =
+    case m.panCenter of 
+        Just x -> Just { x = 0, y = 0 }
+        Nothing -> Just { x = 0, y = 0 }
+-- { x = m.panCenter.x + dx, y = m.panCenter.y + dy }
+
 
 handleUp : String -> Model -> Model
 handleUp k m =
@@ -87,15 +126,15 @@ view : Model -> Html Msg
 view m =
     div []
         [ div [class "two-canvasses"]
-            [ worldView m
+            [ lifeView m
             , tabletView m
             ]
         ]
 
-worldView : Model -> Html Msg
-worldView m =
+lifeView : Model -> Html Msg
+lifeView m =
     div [ class "life"] [
-        Canvas.toHtml ( canvW, canvH ) [] (worldScene m)
+        Canvas.toHtml ( canvW, canvH ) [] (lifeScene m)
     ]
 
 tabletView : Model -> Html Msg
@@ -106,67 +145,88 @@ tabletView m =
             , div [class "player-pos"] [text (posText m)] ]
         ]
 
-worldScene : Model -> List Renderable
-worldScene m =
-    worldBckgrd m ++ bushesView m ++ playerView
+lifeScene : Model -> List Renderable
+lifeScene m =
+    let c = m.player in 
+    lifeBckgrd ++ bushesView m c ++ playerView
 
 tabletScene : Model -> List Renderable
 tabletScene m =
-    tabletBckgrd m ++ bushesView m ++ axesView m ++ playerView ++ lobsView m
+    let 
+        c = m.player
+    in 
+        tabletBckgrd ++ bushesView m c ++ playerView
+        -- ++ axesView c
+        -- ++ lobsView m
 
-worldBckgrd : Model -> List Renderable
-worldBckgrd _ =
+lifeBckgrd : List Renderable
+lifeBckgrd =
     [ shapes [ fill (Color.rgb 0.8 1 0.8) ]
         [ rect ( 0, 0 ) (toFloat canvW) (toFloat canvH ) ] ]
 
-tabletBckgrd : Model -> List Renderable
-tabletBckgrd _ =
+tabletBckgrd : List Renderable
+tabletBckgrd =
     [ shapes [ fill (Color.rgb 0.2 0.2 0.2) ]
         [ rect ( 0, 0 ) (toFloat canvW) (toFloat canvH ) ] ]
 
-bushes : List Point
-bushes = [ ( 200, 200 ), ( 400, 150 ), ( 300, 350 ) ]
+bushes : List WPoint
+bushes = [ { x = 200, y = 300 }, { x = 400, y = 150 }, { x = 0, y = 0}, { x = -100, y = -100}, { x = 100, y = 100}, { x = -100, y = 100}, { x = 100, y = -100} ]
 
-bushesView : Model -> List Renderable
-bushesView m = List.map (bushView m) bushes
+bushesView : Model -> WPoint -> List Renderable
+bushesView m center = List.map (bushView center) bushes
 
-bushView : Model -> ( Float, Float ) -> Renderable
-bushView m ( bx, by ) =
+bushView : WPoint -> WPoint -> Renderable
+bushView center bushLoc =
     shapes [ fill Color.green ]
-        [ rect ( worldToCU m bx by ) 20 20 ]
+        [ oRect center bushLoc 20 20 ]
 
-centeredSq : Float -> Float -> Float -> Shape
-centeredSq x y size = 
+-- Offset Rectangle. Same as the `rect` from the drawing library but 
+-- subtracts the center
+oRect : WPoint -> WPoint -> Float -> Float -> Shape
+oRect center p w h =
+    rect
+        ( p.x - center.x + toFloat canvW / 2
+        , p.y - center.y + toFloat canvH / 2
+        )
+        w
+        h
+
+centeredSq : CPoint -> Float -> Shape
+centeredSq p size = 
     let
-        xShifted = x - size / 2
-        yShifted = y - size / 2 in
+        xShifted = p.cx - size / 2
+        yShifted = p.cy - size / 2 in
         rect (xShifted, yShifted) size size
 
 playerView : List Renderable
-playerView = let avSize = 30 in
-    [ shapes [ fill Color.blue ]
-        [ centeredSq centerX centerY avSize ] ]
+playerView =
+    let
+        avSize = 30
+        halfCanv = { cx = toFloat canvW / 2, cy = toFloat canvH / 2 }
+    in
+        [ shapes [ fill Color.blue ]
+            [ centeredSq halfCanv avSize ] ]
 
-axesView : Model -> List Renderable
-axesView m =
-    [ shapes [ stroke Color.white ]
-        [ drawLine (worldToCU m -2000 0) (worldToCU m 2000 0)
-        , drawLine (worldToCU m 0 -2000) (worldToCU m 0 2000) ] ]
+-- axesView : Point -> List Renderable
+-- axesView c =
+   --  [ shapes [ stroke Color.white ]
+      --   [ drawLine (worldToCU c -2000 0) (worldToCU c 2000 0)
+       -- , drawLine (worldToCU c 0 -2000) (worldToCU c 0 2000) ] ]
 
-lobsView : Model -> List Renderable
-lobsView m =
-    [ shapes [ stroke Color.orange ]
-        (List.map (drawOneLob m) m.lobs) ]
+-- lobsView : Model -> List Renderable
+-- lobsView m =
+    -- [ shapes [ stroke Color.orange ]
+       --  (List.map (drawOneLob m) m.lobs) ]
 
-drawOneLob : Model -> Lob -> Shape
-drawOneLob m lob =
-    drawLine (worldToCUPoint m lob.source) (worldToCUPoint m lob.target)
+-- drawOneLob : Model -> Lob -> Shape
+-- drawOneLob m lob =
+    -- drawLine (worldToCUPoint m lob.source) (worldToCUPoint m lob.target)
 
-currentLob : Model -> Lob
-currentLob m = { source = ( m.x, m.y ), target = ( 50, 200 ) }
+-- currentLob : Model -> Lob
+-- currentLob m = { source = ( m.x, m.y ), target = ( 50, 200 ) }
 
-recordLob : Model -> Model
-recordLob m = { m | lobs = currentLob m :: m.lobs }
+-- recordLob : Model -> Model
+-- recordLob m = { m | lobs = currentLob m :: m.lobs }
 
 drawLine : Point -> Point -> Shape
 drawLine start end = path start [ lineTo end ]
@@ -174,12 +234,19 @@ drawLine start end = path start [ lineTo end ]
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
-        [ Browser.Events.onKeyDown
-            (Decode.map KeyDown (Decode.field "key" Decode.string))
-        , Browser.Events.onKeyUp
-            (Decode.map KeyUp (Decode.field "key" Decode.string))
+        [ Browser.Events.onKeyDown (Decode.map KeyDown (Decode.field "key" Decode.string))
+        , Browser.Events.onKeyUp (Decode.map KeyUp (Decode.field "key" Decode.string))
         , Browser.Events.onAnimationFrameDelta Tick
+        , Browser.Events.onMouseDown (Decode.map MouseDown decodeMouse)
+        , Browser.Events.onMouseMove (Decode.map MouseMove decodeMouse)
+        , Browser.Events.onMouseUp (Decode.succeed MouseUp)
         ]
+
+decodeMouse : Decode.Decoder (Float, Float)
+decodeMouse = 
+    Decode.map2 Tuple.pair 
+        (Decode.field "clientX" Decode.float) 
+        (Decode.field "clientY" Decode.float)
 
 main : Program () Model Msg
 main =
