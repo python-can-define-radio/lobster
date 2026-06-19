@@ -1,0 +1,21 @@
+
+This rule would be instead of rule #4 (full code).
+
+When giving code changes, give it in this format:
+
+changes = [
+  {"old": """the old code
+would be here inside of 
+a multi-line
+string.""",
+"new": """the new code 
+would be here inside of
+its own multiline string."""},
+{"old": """this is the 
+content of the second change""",
+"new": """This is the changed version
+for the second change."""}
+]
+
+for change in changes:
+    text = text.replace(change["old"], change["new"])

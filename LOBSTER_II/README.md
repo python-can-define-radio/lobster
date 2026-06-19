@@ -3,7 +3,7 @@ Build:
     clear; elm make .\web\play\Main.elm --output=web/play/Main.js
 ```
 Then open index.html either directly or through a server. Example:
-    python -m http.server -d web
+    python snc2.py
 
 
 Pain points currently:
