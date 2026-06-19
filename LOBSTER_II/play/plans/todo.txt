@@ -1,4 +1,6 @@
 
+
+
 Next steps (overview) -- details for each below in same order
 
 1 week
@@ -26,9 +28,9 @@ Next steps (overview) -- details for each below in same order
 - HUD elements from Dart:
     - clear-lobs button (wolverine) 
     - toggle gathering lobs (wolverine) 
-    - Messages button (wolverine) 
-    - Merge button (together)
-    - zoom in, zoom out, pan (together)
+    - Merge button not functional yet (together)
+    - zoomin, zoomout buttons not functional yet (together)
+    - pan (together)
     - Lob power placement (wolverine); better LOB simulation (together)
     - road; bush images
 
