@@ -2,7 +2,7 @@ module Main exposing (main)
 
 import Browser
 import Browser.Events
-import Canvas exposing (Point, Renderable, Shape, lineTo, path, rect, shapes)
+import Canvas exposing (Renderable, Shape, lineTo, path, rect, shapes)
 import Canvas.Settings exposing (fill, stroke)
 import Color
 import Html exposing (Html, button, div, i, text, p)
@@ -15,7 +15,7 @@ type alias Model =
     { player : WPoint
     , dirx : Float
     , diry : Float
-    , lobs : List Lob
+    , lobs : List BadLob
     , panCenter : Maybe WPoint
     , isMouseDown : Bool
     , showMessages : Bool
@@ -39,10 +39,23 @@ type alias CDiff =
     , cdy : Float
     }
 
+type alias Azimuth =
+    { fillthisfromdart: Float
+    }
+
+type alias Power =
+    { fillthisfromdart: Float
+    }    
+
 type alias Lob =
     { source : WPoint
-    , target : WPoint
+    , azimuth : Azimuth
+    , power : Power
     }
+
+type alias BadLob = 
+    { start: WPoint
+    , end: WPoint }
 
 
 type Msg
@@ -63,7 +76,8 @@ initialModel =
     { player = { x = 100, y = 100 }
     , dirx = 0
     , diry = 0
-    , lobs = []
+    , lobs = [ { start = {x = 0, y = 0}, end = {x = 100, y = 200} }
+               , { start = {x = 100, y = 0}, end = {x = -100, y = 200} }]
     , panCenter = Nothing
     , isMouseDown = False
     , showMessages = False
@@ -275,13 +289,19 @@ tabletScene m =
     tabletBckgrd
         ++ bushesView m.zoom center
         ++ avatarView m.zoom center m.player
+        ++ lobsView m.zoom center m.lobs
 
 
-screenCenter : CPoint
-screenCenter =
-    { cx = toFloat canvW / 2
-    , cy = toFloat canvH / 2
-    }
+lobsView : Float -> WPoint -> List BadLob -> List Renderable
+lobsView zoom center lobs = 
+    let
+        drawOneLob : BadLob -> Shape
+        drawOneLob lob = oCZLine zoom center lob.start lob.end
+    in
+        [ shapes [ stroke Color.orange ]
+                 ( List.map drawOneLob lobs ) ]
+
+
 
 
 avatarView : Float -> WPoint -> WPoint -> List Renderable
@@ -399,19 +419,29 @@ bushView zoom center bushLoc =
 
 -- offset centered zoomed rectangle
 oCZRect : Float -> WPoint -> WPoint -> Float -> Float -> Shape
-oCZRect zoom center wp wzoom hzoom =
+oCZRect zoom center wp w h =
     let
         canvpoint : CPoint
         canvpoint = worldToCanvas zoom center wp
-        xcentered = canvpoint.cx - wzoom/2
-        ycentered = canvpoint.cy - hzoom/2
+        xcentered = canvpoint.cx - w/2
+        ycentered = canvpoint.cy - h/2
     in
-    rect (xcentered, ycentered) wzoom hzoom
+    rect (xcentered, ycentered) w h
 
 
-drawLine : Point -> Point -> Shape
-drawLine start end =
-    path start [ lineTo end ]
+drawLineRaw : CPoint -> CPoint -> Shape
+drawLineRaw start end =
+    path (start.cx, start.cy) [ lineTo (end.cx, end.cy) ]
+
+-- offset centered zoomed line
+oCZLine : Float -> WPoint -> WPoint -> WPoint -> Shape
+oCZLine zoom center begin end =
+    let
+        canvb = worldToCanvas zoom center begin
+        canve = worldToCanvas zoom center end
+    in
+    drawLineRaw canvb canve
+
 
 
 subscriptions : Model -> Sub Msg

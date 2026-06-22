@@ -4,7 +4,6 @@
 Next steps (overview) -- details for each below in same order
 
 1 week
-- AI in commits
 - HUD elements from Dart
 - images from Dart
 
@@ -18,12 +17,6 @@ Next steps (overview) -- details for each below in same order
 #############################################################################
 ##########                         1 week                          ##########
 #############################################################################
-#############################################################################
-- AI in commits:
-    I noticed on github that people are giving 'credit' to AIs either by
-    saying "Co-authored-by: the ai name" or "Assisted-by: the ai name".
-    Is it ok if we do this?
-
 #############################################################################
 - HUD elements from Dart:
     - clear-lobs button (wolverine) 
