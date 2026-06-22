@@ -175,8 +175,8 @@ computeNewPanCenter cdiff m =
         current =
             cameraCenter m
     in
-    { x = current.x - cdiff.cdx
-    , y = current.y + cdiff.cdy
+    { x = current.x - cdiff.cdx / m.zoom
+    , y = current.y + cdiff.cdy / m.zoom
     }
 
 
@@ -286,9 +286,11 @@ screenCenter =
 
 avatarView : Float -> WPoint -> WPoint -> List Renderable
 avatarView zoom center player =
-    [ shapes [ fill Color.blue ]
-        [ oCZRect zoom center player 30 30 ]
-    ]
+    let
+        size = 30 * zoom 
+    in
+        [ shapes [ fill Color.blue ]
+                 [ oCZRect zoom center player size size ] ]
 
 
 lifeBckgrd : List Renderable
@@ -387,20 +389,23 @@ bushesView zoom center =
 
 bushView : Float -> WPoint -> WPoint -> Renderable
 bushView zoom center bushLoc =
-    shapes [ fill Color.green ]
-           [ oCZRect zoom center bushLoc 20 20 ]
+    let 
+        size = 20 * zoom
+    in
+        shapes [ fill Color.green ]
+               [ oCZRect zoom center bushLoc size size ]
 
 
 -- offset centered zoomed rectangle
 oCZRect : Float -> WPoint -> WPoint -> Float -> Float -> Shape
-oCZRect zoom center wp w h =
+oCZRect zoom center wp wzoom hzoom =
     let
-        cp : CPoint
-        cp = worldToCanvas zoom center wp
-        xcentered = cp.cx - w/2
-        ycentered = cp.cy - h/2
+        canvpoint : CPoint
+        canvpoint = worldToCanvas zoom center wp
+        xcentered = canvpoint.cx - wzoom/2
+        ycentered = canvpoint.cy - hzoom/2
     in
-    rect (xcentered, ycentered) w h
+    rect (xcentered, ycentered) wzoom hzoom
 
 
 drawLine : Point -> Point -> Shape
