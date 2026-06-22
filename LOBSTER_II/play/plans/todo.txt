@@ -30,15 +30,14 @@ Next steps (overview) -- details for each below in same order
     - toggle gathering lobs (wolverine) 
     - Merge button not functional yet (together)
     - zoomin, zoomout buttons not functional yet (together)
-    - pan (together)
     - Lob power placement (wolverine); better LOB simulation (together)
-    - road; bush images
+    - input and submit
 
 #############################################################################
 - images from Dart
     - avatar images
         - walking animation
-    - input and submit
+    - road; bush images (together)
 
 #############################################################################
 
@@ -87,3 +86,11 @@ Next steps (overview) -- details for each below in same order
 #############################################################################
 LOBSTER II: CRABNETS (Counter Recon & Bearing Network Engagement Tactical System)
 LOBSTER III: Last Bearing
+
+
+
+
+Some message
+
+Co-authored-by: james-pcdr <james-pcdr@users.noreply.github.com>
+AI-Assisted-By: ChatGPT (GPT 5.5, OpenAI)

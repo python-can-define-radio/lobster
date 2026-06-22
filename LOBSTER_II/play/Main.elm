@@ -19,6 +19,7 @@ type alias Model =
     , panCenter : Maybe WPoint
     , isMouseDown : Bool
     , showMessages : Bool
+    , zoom : Float
     }
 
 
@@ -33,6 +34,10 @@ type alias CPoint =
     , cy : Float
     }
 
+type alias CDiff =
+    { cdx : Float
+    , cdy : Float
+    }
 
 type alias Lob =
     { source : WPoint
@@ -48,6 +53,8 @@ type Msg
     | MouseMove (Float, Float)
     | MouseUp
     | ToggleMessages
+    | ZoomIn
+    | ZoomOut
     | Recenter
 
 
@@ -60,6 +67,7 @@ initialModel =
     , panCenter = Nothing
     , isMouseDown = False
     , showMessages = False
+    , zoom = 1.0
     }
 
 
@@ -100,10 +108,10 @@ cameraCenter m =
             m.player
 
 
-worldToCanvas : WPoint -> WPoint -> CPoint
-worldToCanvas center p =
-    { cx = p.x - center.x + toFloat canvW / 2
-    , cy = center.y - p.y + toFloat canvH / 2
+worldToCanvas : Float -> WPoint -> WPoint -> CPoint
+worldToCanvas zoom center p =
+    { cx = zoom * (p.x - center.x) + toFloat canvW / 2
+    , cy = zoom * (center.y - p.y) + toFloat canvH / 2
     }
 
 
@@ -119,50 +127,56 @@ posText m =
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
+update msg m =
     case msg of
         KeyDown k ->
-            ( handleDown k model, Cmd.none )
+            ( handleDown k m, Cmd.none )
 
         KeyUp k ->
-            ( handleUp k model, Cmd.none )
+            ( handleUp k m, Cmd.none )
 
         Tick dt ->
-            ( timestep dt model, Cmd.none )
+            ( timestep dt m, Cmd.none )
 
         MouseDown ->
-            ( { model | isMouseDown = True }, Cmd.none )
+            ( { m | isMouseDown = True }, Cmd.none )
 
         MouseUp ->
-            ( { model | isMouseDown = False }, Cmd.none )
+            ( { m | isMouseDown = False }, Cmd.none )
 
         MouseMove (dx, dy) ->
-            ( handleMouseMove dx dy model, Cmd.none )
+            ( handleMouseMove {cdx = dx, cdy = dy} m, Cmd.none )
 
         ToggleMessages ->
-            ( { model | showMessages = not model.showMessages }, Cmd.none )
+            ( { m | showMessages = not m.showMessages }, Cmd.none )
+
+        ZoomIn ->
+            ( { m | zoom = m.zoom * 2 }, Cmd.none)
+
+        ZoomOut ->
+            ( { m | zoom = m.zoom / 2 }, Cmd.none)
 
         Recenter ->
-            ( {model | panCenter = Nothing }, Cmd.none)
+            ( { m | panCenter = Nothing }, Cmd.none)
 
 
-handleMouseMove : Float -> Float -> Model -> Model
-handleMouseMove dx dy m =
+handleMouseMove : CDiff -> Model -> Model
+handleMouseMove cdiff m =
     if m.isMouseDown then
-        { m | panCenter = Just (computeNewPanCenter dx dy m) }
+        { m | panCenter = Just (computeNewPanCenter cdiff m) }
 
     else
         m
 
 
-computeNewPanCenter : Float -> Float -> Model -> WPoint
-computeNewPanCenter dx dy m =
+computeNewPanCenter : CDiff -> Model -> WPoint
+computeNewPanCenter cdiff m =
     let
         current =
             cameraCenter m
     in
-    { x = current.x - dx
-    , y = current.y + dy
+    { x = current.x - cdiff.cdx
+    , y = current.y + cdiff.cdy
     }
 
 
@@ -246,16 +260,21 @@ recenterButton m =
 
 lifeScene : Model -> List Renderable
 lifeScene m =
-    lifeBckgrd
-        ++ bushesView m m.player
-        ++ avatarView m m.player
+    let
+        center = m.player
+        zoom = 1
+    in
+        lifeBckgrd
+            ++ bushesView zoom center
+            ++ avatarView zoom center m.player
 
 
 tabletScene : Model -> List Renderable
 tabletScene m =
+    let center = cameraCenter m in
     tabletBckgrd
-        ++ bushesView m (cameraCenter m)
-        ++ avatarView m (cameraCenter m)
+        ++ bushesView m.zoom center
+        ++ avatarView m.zoom center m.player
 
 
 screenCenter : CPoint
@@ -265,10 +284,10 @@ screenCenter =
     }
 
 
-avatarView : Model -> WPoint -> List Renderable
-avatarView m center =
+avatarView : Float -> WPoint -> WPoint -> List Renderable
+avatarView zoom center player =
     [ shapes [ fill Color.blue ]
-        [ oCRect center m.player 30 30 ]
+        [ oCZRect zoom center player 30 30 ]
     ]
 
 
@@ -290,9 +309,29 @@ tabletButtons : Html Msg
 tabletButtons =
     div [ class "tablet-buttons" ]
         [ iconButton "fa-solid fa-object-group fa-2x"
-        , iconButton "fa-solid fa-magnifying-glass-plus fa-2x"
-        , iconButton "fa-solid fa-magnifying-glass-minus fa-2x"
+        , zoomInButton 
+        , zoomOutButton
         , messageButton
+        ]
+
+        
+iconButton : String -> Html Msg
+iconButton iconName =
+    button [ class "game-btn" ]
+           [ i [ class iconName ] [] ]
+
+
+zoomInButton : Html Msg
+zoomInButton = 
+    button [ class "game-btn", onClick ZoomIn ]
+        [ i [ class "fa-solid fa-magnifying-glass-plus fa-2x" ] []
+        ]
+
+
+zoomOutButton : Html Msg
+zoomOutButton = 
+    button [ class "game-btn", onClick ZoomOut ]
+        [ i [ class "fa-solid fa-magnifying-glass-minus fa-2x" ] []
         ]
 
 
@@ -329,12 +368,6 @@ missionMessage =
         ]
 
 
-iconButton : String -> Html Msg
-iconButton iconName =
-    button [ class "game-btn" ]
-           [ i [ class iconName ] [] ]
-
-
 bushes : List WPoint
 bushes =
     [ { x = 200, y = 300 }
@@ -347,25 +380,27 @@ bushes =
     ]
 
 
-bushesView : Model -> WPoint -> List Renderable
-bushesView m center =
-    List.map (bushView center) bushes
+bushesView : Float -> WPoint -> List Renderable
+bushesView zoom center =
+    List.map (bushView zoom center) bushes
 
 
-bushView : WPoint -> WPoint -> Renderable
-bushView center bushLoc =
+bushView : Float -> WPoint -> WPoint -> Renderable
+bushView zoom center bushLoc =
     shapes [ fill Color.green ]
-           [ oCRect center bushLoc 20 20 ]
+           [ oCZRect zoom center bushLoc 20 20 ]
 
 
--- offset centered rectangle
-oCRect : WPoint -> WPoint -> Float -> Float -> Shape
-oCRect center p w h =
+-- offset centered zoomed rectangle
+oCZRect : Float -> WPoint -> WPoint -> Float -> Float -> Shape
+oCZRect zoom center wp w h =
     let
-        cp =
-            worldToCanvas center p
+        cp : CPoint
+        cp = worldToCanvas zoom center wp
+        xcentered = cp.cx - w/2
+        ycentered = cp.cy - h/2
     in
-    rect (cp.cx - w/2, cp.cy - h/2) w h
+    rect (xcentered, ycentered) w h
 
 
 drawLine : Point -> Point -> Shape
