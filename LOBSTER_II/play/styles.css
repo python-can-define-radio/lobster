@@ -101,7 +101,7 @@ h1 {
     outline: none;
 }
 
-#recenter-btn {
+.recenter-btn {
     position: absolute;
     top: 50px;
     left: 280px;

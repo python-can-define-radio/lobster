@@ -13,8 +13,8 @@ import Json.Decode as Decode
 
 type alias Model =
     { player : WPoint
-    , vx : Float
-    , vy : Float
+    , dirx : Float
+    , diry : Float
     , lobs : List Lob
     , panCenter : Maybe WPoint
     , isMouseDown : Bool
@@ -35,8 +35,8 @@ type alias CPoint =
 
 
 type alias Lob =
-    { source : Point
-    , target : Point
+    { source : WPoint
+    , target : WPoint
     }
 
 
@@ -48,13 +48,14 @@ type Msg
     | MouseMove (Float, Float)
     | MouseUp
     | ToggleMessages
+    | Recenter
 
 
 initialModel : Model
 initialModel =
     { player = { x = 100, y = 100 }
-    , vx = 0
-    , vy = 0
+    , dirx = 0
+    , diry = 0
     , lobs = []
     , panCenter = Nothing
     , isMouseDown = False
@@ -74,22 +75,12 @@ canvH : Int
 canvH = 400
 
 
-setVx : Model -> Float -> Model
-setVx m v =
-    { m | vx = v }
-
-
-setVy : Model -> Float -> Model
-setVy m v =
-    { m | vy = v }
-
-
 move : Float -> Model -> Model
 move dt m =
     { m
         | player =
-            { x = m.player.x + m.vx * distperMs * dt
-            , y = m.player.y + m.vy * distperMs * dt
+            { x = m.player.x + m.dirx * distperMs * dt
+            , y = m.player.y + m.diry * distperMs * dt
             }
     }
 
@@ -116,12 +107,15 @@ worldToCanvas center p =
     }
 
 
-posText : Model -> String
+posText : Model -> Html Msg
 posText m =
-    "x: "
-        ++ String.fromInt (round m.player.x)
-        ++ ", y: "
-        ++ String.fromInt (round m.player.y)
+    div [ class "player-pos" ]
+        [ text (
+            "x: "
+            ++ String.fromInt (round m.player.x)
+            ++ ", y: "
+            ++ String.fromInt (round m.player.y)
+        ) ]
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -143,21 +137,22 @@ update msg model =
             ( { model | isMouseDown = False }, Cmd.none )
 
         MouseMove (dx, dy) ->
-            handleMouseMove dx dy model
+            ( handleMouseMove dx dy model, Cmd.none )
 
         ToggleMessages ->
             ( { model | showMessages = not model.showMessages }, Cmd.none )
 
+        Recenter ->
+            ( {model | panCenter = Nothing }, Cmd.none)
 
-handleMouseMove : Float -> Float -> Model -> ( Model, Cmd Msg )
+
+handleMouseMove : Float -> Float -> Model -> Model
 handleMouseMove dx dy m =
     if m.isMouseDown then
-        ( { m | panCenter = Just (computeNewPanCenter dx dy m) }
-        , Cmd.none
-        )
+        { m | panCenter = Just (computeNewPanCenter dx dy m) }
 
     else
-        ( m, Cmd.none )
+        m
 
 
 computeNewPanCenter : Float -> Float -> Model -> WPoint
@@ -175,16 +170,16 @@ handleUp : String -> Model -> Model
 handleUp k m =
     case String.toLower k of
         "w" ->
-            setVy m 0
+            { m | diry = 0 }
 
         "s" ->
-            setVy m 0
+            { m | diry = 0 }
 
         "a" ->
-            setVx m 0
+            { m | dirx = 0 }
 
         "d" ->
-            setVx m 0
+            { m | dirx = 0 }
 
         _ ->
             m
@@ -194,16 +189,16 @@ handleDown : String -> Model -> Model
 handleDown k m =
     case String.toLower k of
         "w" ->
-            setVy m 1
+            { m | diry = 1 }
 
         "s" ->
-            setVy m -1
+            { m | diry = -1 }
 
         "a" ->
-            setVx m -1
+            { m | dirx = -1 }
 
         "d" ->
-            setVx m 1
+            { m | dirx = 1 }
 
         _ ->
             m
@@ -229,29 +224,38 @@ lifeView m =
 tabletView : Model -> Html Msg
 tabletView m =
     div [ class "hudwrap" ]
-        [ div [ class "tablet-area" ]
-            [ div [ class "hud" ]
-                [ Canvas.toHtml (canvW, canvH) [] (tabletScene m)
-                , div [ class "player-pos" ] [ text (posText m) ]
-                , tabletButtons
-                , messagesOverlay m
-                ]
+        [ div [ class "hud" ]
+            [ Canvas.toHtml (canvW, canvH) [] (tabletScene m)
+            , posText m
+            , tabletButtons
+            , recenterButton m
+            , messagesOverlay m
             ]
         ]
+        
+
+recenterButton : Model -> Html Msg
+recenterButton m =
+    case m.panCenter of
+        Nothing -> 
+            div [ class "hidden" ] []
+        _ ->
+            button [ class "recenter-btn game-btn", onClick Recenter ] 
+                   [ text "Re-center" ]
 
 
 lifeScene : Model -> List Renderable
 lifeScene m =
     lifeBckgrd
         ++ bushesView m m.player
-        ++ avatarView
+        ++ avatarView m m.player
 
 
 tabletScene : Model -> List Renderable
 tabletScene m =
     tabletBckgrd
         ++ bushesView m (cameraCenter m)
-        ++ avatarView
+        ++ avatarView m (cameraCenter m)
 
 
 screenCenter : CPoint
@@ -261,10 +265,10 @@ screenCenter =
     }
 
 
-avatarView : List Renderable
-avatarView =
+avatarView : Model -> WPoint -> List Renderable
+avatarView m center =
     [ shapes [ fill Color.blue ]
-        [ centeredSq screenCenter 30 ]
+        [ oCRect center m.player 30 30 ]
     ]
 
 
@@ -277,7 +281,7 @@ lifeBckgrd =
 
 tabletBckgrd : List Renderable
 tabletBckgrd =
-    [ shapes [ fill (Color.rgb 0.2 0.2 0.2) ]
+    [ shapes [ fill (Color.rgb 0.1 0.1 0.1) ]
         [ rect (0, 0) (toFloat canvW) (toFloat canvH) ]
     ]
 
@@ -303,25 +307,32 @@ messagesOverlay : Model -> Html Msg
 messagesOverlay m =
     if m.showMessages then
         div [ class "overlay" ]
-            [ button [ class "backbtn game-btn", onClick ToggleMessages ]
-                [ i [ class "fa-solid fa-chevron-left fa-2x" ] []
-                ]
-            , div [ class "mission-message" ]
-                [ 
-                    i [ class "fa-regular fa-user fa-3x"] []
-                    , p [] [text "Mission Update :: Recover the lost signal beacon near the northern ridge." ] 
-                ]
+            [ overlayBackButton
+            , missionMessage
             ] 
 
     else
         div [ class "hidden" ] []
 
 
+overlayBackButton : Html Msg
+overlayBackButton =
+    button [ class "backbtn game-btn", onClick ToggleMessages ]
+           [ i [ class "fa-solid fa-chevron-left fa-2x" ] [] ]
+
+
+missionMessage :  Html Msg
+missionMessage =
+    div [ class "mission-message" ]
+        [ i [ class "fa-regular fa-user fa-3x"] []
+        , p [] [text "Mission Update :: Recover the lost signal beacon near the northern ridge." ] 
+        ]
+
+
 iconButton : String -> Html Msg
 iconButton iconName =
     button [ class "game-btn" ]
-        [ i [ class iconName ] []
-        ]
+           [ i [ class iconName ] [] ]
 
 
 bushes : List WPoint
@@ -338,30 +349,23 @@ bushes =
 
 bushesView : Model -> WPoint -> List Renderable
 bushesView m center =
-    List.map (bushView m center) bushes
+    List.map (bushView center) bushes
 
 
-bushView : Model -> WPoint -> WPoint -> Renderable
-bushView m center bushLoc =
+bushView : WPoint -> WPoint -> Renderable
+bushView center bushLoc =
     shapes [ fill Color.green ]
-        [ oRect center bushLoc 20 20 ]
+           [ oCRect center bushLoc 20 20 ]
 
 
-oRect : WPoint -> WPoint -> Float -> Float -> Shape
-oRect center p w h =
+-- offset centered rectangle
+oCRect : WPoint -> WPoint -> Float -> Float -> Shape
+oCRect center p w h =
     let
         cp =
             worldToCanvas center p
     in
-    rect (cp.cx, cp.cy) w h
-
-
-centeredSq : CPoint -> Float -> Shape
-centeredSq p size =
-    rect
-        (p.cx - size / 2, p.cy - size / 2)
-        size
-        size
+    rect (cp.cx - w/2, cp.cy - h/2) w h
 
 
 drawLine : Point -> Point -> Shape
