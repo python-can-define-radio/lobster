@@ -288,9 +288,10 @@ avatarView : Float -> WPoint -> WPoint -> List Renderable
 avatarView zoom center player =
     let
         size = 30 * zoom 
+        clsize = clamp 20 99999 size
     in
         [ shapes [ fill Color.blue ]
-                 [ oCZRect zoom center player size size ] ]
+                 [ oCZRect zoom center player clsize clsize ] ]
 
 
 lifeBckgrd : List Renderable

@@ -29,7 +29,6 @@ Next steps (overview) -- details for each below in same order
     - clear-lobs button (wolverine) 
     - toggle gathering lobs (wolverine) 
     - Merge button not functional yet (together)
-    - zoomin, zoomout buttons not functional yet (together)
     - Lob power placement (wolverine); better LOB simulation (together)
     - input and submit
 
