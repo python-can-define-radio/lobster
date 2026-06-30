@@ -26,6 +26,12 @@ h1 {
     margin-bottom: 10px;
 }
 
+#gameroot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
 .life {
     margin-top: 20px;
 }
@@ -58,7 +64,7 @@ h1 {
     height: 20px;
 }
 
-#lob-power {
+.lob-power {
     display: flex;
     align-items: center;
     position: absolute;
@@ -106,7 +112,7 @@ h1 {
 .recenter-btn {
     position: absolute;
     top: 50px;
-    left: 280px;
+    left: 260px;
 }
 
 .game-btn {
@@ -154,7 +160,7 @@ h1 {
     bottom: 200px;
 }
 
-#game-dialog-buttons {
+.game-dialog-buttons {
     display: flex;
     justify-content: space-between;
     gap: 10px;
@@ -163,15 +169,9 @@ h1 {
     padding-right: 50px;
 }
 
-#directions { 
+.directions { 
     align-items: left;
     font-size: 1.3em;
-}
-
-#gameroot {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
 }
 
 .two-canvasses {
@@ -179,15 +179,6 @@ h1 {
     flex-direction: row;
     flex-wrap: wrap;
     gap: 16px;
-}
-
-.cmlifeparent {
-    position: relative;
-}
-
-.cmlobparent {
-    color: lightgreen;
-    position: relative;
 }
 
 .tablet-buttons {
@@ -237,22 +228,6 @@ h1 {
     font-size: 1.3em;
 }
 
-.FAQs {
-    margin-left: 50px;
-    margin-right: 50px;
-}
-
-#submit-coords-form {
-    position: absolute;
-    bottom: 30px;
-    left: 50px;
-}
-
-#submit-coords-form input {
-    margin-left: 3px;
-    margin-right: 3px;
-}
-
 @keyframes msg-strobe {
     0% { background-color: rgba(255, 255, 255, 0.08); }
     50% { background-color: rgba(255, 0, 0, 0.95); }
@@ -263,19 +238,19 @@ h1 {
     animation: msg-strobe 0.7s infinite;
 }
 
-#settings-menu {
+.settings-menu {
     position: fixed;
     top: 12px;
     right: 12px;
     z-index: 9999;
 }
 
-#settings-menu summary {
+.settings-menu summary {
     list-style: none;
     cursor: pointer;
 }
 
-#settings-menu summary::-webkit-details-marker {
+.settings-menu summary::-webkit-details-marker {
     display: none;
 }
 

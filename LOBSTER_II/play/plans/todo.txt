@@ -1,8 +1,10 @@
 Next steps (overview) -- details for each below in same order
 
 1 week
-- misc stuff from Dart
-- HUD elements from Dart
+- Lob randomization
+- Lob power
+- Submit button
+- Merge button
 - images from Dart
 
 1 month:
@@ -16,18 +18,10 @@ Next steps (overview) -- details for each below in same order
 ##########                         1 week                          ##########
 #############################################################################
 #############################################################################
-- misc stuff from Dart:
-    - fields for `type alias Azimuth` (wolverine)
-    - fields for `type alias Power` (wolverine)
-    - logic for Azimuth and line drawing (together; primarily wolverine)
-
-#############################################################################
-- HUD elements from Dart:
-    - clear-lobs button (wolverine) 
-    - toggle gathering lobs (wolverine) 
-    - Merge button not functional yet (together)
-    - Lob power placement (wolverine); better LOB simulation (together)
-    - input and submit
+- Lob randomization to simulate imprecision
+- Lob power displayed
+- Submit button to check coordinates of transmitter
+- Merge button to merge canvasses
 
 #############################################################################
 - images from Dart
@@ -36,7 +30,9 @@ Next steps (overview) -- details for each below in same order
     - road; bush images (together)
 
 #############################################################################
+- better LOB simulation (together)
 
+#############################################################################
 
 #############################################################################
 

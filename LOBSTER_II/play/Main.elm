@@ -9,6 +9,7 @@ import Html exposing (Html, button, div, form, i, input, p, text)
 import Html.Attributes exposing (class, placeholder, type_, value)
 import Html.Events exposing (onClick, onInput, onSubmit)
 import Json.Decode as Decode
+import Random
 
 
 type alias Model =
@@ -78,6 +79,7 @@ type Msg
     | InputChanged String
     | Submit
     | ToggleGatherLobs
+    | GotLobNoise Float
 
 
 initialModel : Model
@@ -132,31 +134,35 @@ move dt m =
     }
 
 
-timestep : Float -> Model -> Model
-timestep dt m =
-    if m.isGatheringLobs then
-        m |> move dt |> addCurrentLob
-    else
-        m |> move dt
--- timestep : Float -> Model -> Model
--- timestep dt m =
---     let addIfGath = 
---         if m.isGatheringLobs then addCurrentLob else \x -> x
-
-
-
-addCurrentLob : Model -> Model
-addCurrentLob m =
+addCurrentLobWithNoise : Float -> Model -> Model
+addCurrentLobWithNoise noise m =
     { m
         | lobs =
-            m.lobs ++ [ currentLob m ]
+            m.lobs ++ [ currentLobWithNoise noise m ]
     }
 
 
-currentLob : Model -> Lob
-currentLob m =
+currentLobWithNoise : Float -> Model -> Lob
+currentLobWithNoise noise m =
+    let
+        base =
+            azimuthFromPositions m.player m.transmitter
+
+        cosA =
+            cos noise
+
+        sinA =
+            sin noise
+
+        rotated =
+            { cosresult =
+                base.cosresult * cosA - base.sinresult * sinA
+            , sinresult =
+                base.cosresult * sinA + base.sinresult * cosA
+            }
+    in
     { source = m.player
-    , azimuth = azimuthFromPositions m.player m.transmitter
+    , azimuth = rotated
     , power = { mW = 10 }
     }
 
@@ -199,7 +205,12 @@ update msg m =
             ( handleUp k m, Cmd.none )
 
         Tick dt ->
-            ( timestep dt m, Cmd.none )
+            if m.isGatheringLobs then
+                ( m |> move dt
+                , Random.generate GotLobNoise (Random.float -0.05 0.05)
+                )
+            else
+                ( move dt m, Cmd.none )
 
         MouseDown ->
             ( { m | isMouseDown = True }, Cmd.none )
@@ -227,6 +238,9 @@ update msg m =
 
         ToggleGatherLobs ->
             ( { m | isGatheringLobs = not m.isGatheringLobs }, Cmd.none )
+
+        GotLobNoise angle ->
+            ( addCurrentLobWithNoise angle m, Cmd.none )
 
         InputChanged newText ->
             ( updateInput newText m, Cmd.none )
