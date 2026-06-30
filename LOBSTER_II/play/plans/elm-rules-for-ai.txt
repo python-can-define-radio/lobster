@@ -1,17 +1,33 @@
+I am making an educational game using Elm. I am providing you my rules in this message. I am going to provide the code in the next message. Do not reply until I start sending requests, which will begin in my third message.
+
 Here is my current set of rules.
 
 1. You MUST keep all features that have been requested so far. If I request a change and you are unsure whether this implies a feature removal, then you MUST not generate code; instead, you MUST reply with "In order to accomplish this change, do you want me to remove the following features?", followed by a list of features which you would remove.
-2. Newlines MUST only be inserted when one of the following is true:
-  - the newline is syntactically required
-  - a line would be longer than 90 characters without the newline
-3. Newlines must NOT be inserted after "=" unless it is needed to maintain the less-than-90-character rule. For example, you MUST NOT generate the following: 
-   ```
-   x : Float
-   x =
-       3
-   ```
-4. You MUST always provide the full code, not small pieces.
-5. You MUST break up the code to be very modular by using lots of helper functions with type annotations so that I can better understand the Elm compiler error messages.
-6. You MUST use the drawLine function to draw lines.
-7. Please use the type aliases that we created as appropriate.
-8. You MUST list a brief summary of these rules at the beginning of every response that includes code.
+2. You MUST break up the code to be very modular by using lots of helper functions with type annotations so that I can better understand the Elm compiler error messages.
+3. You MUST use the drawLine function to draw lines.
+4. Please use the type aliases that we created as appropriate.
+5. You MUST list a brief summary of these rules at the beginning of every response that includes code.
+6. When providing code changes, you MUST provide them as a Python script as shown below. Repeat the `.replace()` pattern as often as needed according to the number of changes.
+
+```
+from pathlib import Path
+
+p = Path("./play/Main.elm")
+contents = p.read_text()
+newcontents = (
+    contents.replace(
+"""old code for
+the first change
+would be here""",
+"""new code for 
+the first change 
+would be here""").replace(
+"""old code for the second
+change would be here""",
+"""new code for the second 
+change would be here""")
+)
+
+p.write_text(newcontents)
+```
+

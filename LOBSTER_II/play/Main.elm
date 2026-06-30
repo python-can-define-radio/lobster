@@ -5,9 +5,9 @@ import Browser.Events
 import Canvas exposing (Renderable, Shape, lineTo, path, rect, shapes)
 import Canvas.Settings exposing (fill, stroke)
 import Color
-import Html exposing (Html, button, div, i, text, p)
-import Html.Attributes exposing (class)
-import Html.Events exposing (onClick)
+import Html exposing (Html, button, div, form, i, input, p, text)
+import Html.Attributes exposing (class, placeholder, type_, value)
+import Html.Events exposing (onClick, onInput, onSubmit)
 import Json.Decode as Decode
 
 
@@ -20,6 +20,8 @@ type alias Model =
     , isMouseDown : Bool
     , showMessages : Bool
     , zoom : Float
+    , input : String
+    , submittedText : String
     }
 
 
@@ -34,24 +36,29 @@ type alias CPoint =
     , cy : Float
     }
 
+
 type alias CDiff =
     { cdx : Float
     , cdy : Float
     }
 
+
 type alias Azimuth =
     { fillthisfromdart: Float
     }
 
+
 type alias Power =
     { fillthisfromdart: Float
     }    
+
 
 type alias Lob =
     { source : WPoint
     , azimuth : Azimuth
     , power : Power
     }
+
 
 type alias BadLob = 
     { start: WPoint
@@ -69,6 +76,8 @@ type Msg
     | ZoomIn
     | ZoomOut
     | Recenter
+    | InputChanged String
+    | Submit
 
 
 initialModel : Model
@@ -82,6 +91,8 @@ initialModel =
     , isMouseDown = False
     , showMessages = False
     , zoom = 1.0
+    , input = ""
+    , submittedText = ""
     }
 
 
@@ -173,6 +184,12 @@ update msg m =
         Recenter ->
             ( { m | panCenter = Nothing }, Cmd.none)
 
+        InputChanged newText ->
+            ( updateInput newText m, Cmd.none )
+
+        Submit ->
+            ( submitInput m, Cmd.none )
+
 
 handleMouseMove : CDiff -> Model -> Model
 handleMouseMove cdiff m =
@@ -258,6 +275,7 @@ tabletView m =
             , tabletButtons
             , recenterButton m
             , messagesOverlay m
+            , inputForm m
             ]
         ]
         
@@ -340,27 +358,27 @@ tabletButtons =
         
 iconButton : String -> Html Msg
 iconButton iconName =
-    button [ class "game-btn" ]
+    button [ Html.Attributes.title "Merge", class "game-btn" ]
            [ i [ class iconName ] [] ]
 
 
 zoomInButton : Html Msg
 zoomInButton = 
-    button [ class "game-btn", onClick ZoomIn ]
+    button [ Html.Attributes.title "Zoom in", class "game-btn", onClick ZoomIn ]
         [ i [ class "fa-solid fa-magnifying-glass-plus fa-2x" ] []
         ]
 
 
 zoomOutButton : Html Msg
 zoomOutButton = 
-    button [ class "game-btn", onClick ZoomOut ]
+    button [ Html.Attributes.title "Zoom out", class "game-btn", onClick ZoomOut ]
         [ i [ class "fa-solid fa-magnifying-glass-minus fa-2x" ] []
         ]
 
 
 messageButton : Html Msg
 messageButton =
-    button [ class "game-btn", onClick ToggleMessages ]
+    button [ Html.Attributes.title "Messages", class "game-btn", onClick ToggleMessages ]
         [ i [ class "fa-solid fa-envelope fa-2x" ] []
         ]
 
@@ -379,7 +397,7 @@ messagesOverlay m =
 
 overlayBackButton : Html Msg
 overlayBackButton =
-    button [ class "backbtn game-btn", onClick ToggleMessages ]
+    button [ Html.Attributes.title "Back", class "backbtn game-btn", onClick ToggleMessages ]
            [ i [ class "fa-solid fa-chevron-left fa-2x" ] [] ]
 
 
@@ -442,6 +460,40 @@ oCZLine zoom center begin end =
     in
     drawLineRaw canvb canve
 
+
+updateInput : String -> Model -> Model
+updateInput newText m =
+    { m | input = newText }
+
+
+submitInput : Model -> Model
+submitInput m =
+    { m
+        | submittedText = m.input
+        , input = ""
+    }
+
+
+inputForm : Model -> Html Msg
+inputForm m =
+    form
+        [ class "input-form"
+        , onSubmit Submit
+        ]
+        [ input
+            [ class "input-form-textfield"
+            , type_ "text"
+            , placeholder "Enter coordinates..."
+            , value m.input
+            , onInput InputChanged
+            ]
+            []
+        , button
+            [ Html.Attributes.title "Submit", class "game-btn"
+            , type_ "submit"
+            ]
+            [ text "Submit" ]
+        ]
 
 
 subscriptions : Model -> Sub Msg

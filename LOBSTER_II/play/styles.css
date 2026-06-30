@@ -116,7 +116,6 @@ h1 {
     border-radius: 5px;
     min-height: 20px;
     padding: 4px;
-    cursor: pointer;
 }
 
 .col-red {
@@ -125,6 +124,7 @@ h1 {
 
 .game-btn:hover {
     background-color: #aaa;
+    cursor: none;
 }
 
 .game-btn.button-active {
@@ -297,4 +297,15 @@ h1 {
     background: none;
     padding: 10px 20px;
     font-weight: bold;
+}
+
+.input-form {
+    position: absolute;
+    bottom: 10px;
+    left: 25px;
+}
+
+.input-form-textfield {
+    margin: 10px;
+    padding: 4px;
 }

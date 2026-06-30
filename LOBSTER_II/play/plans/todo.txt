@@ -1,9 +1,7 @@
-
-
-
 Next steps (overview) -- details for each below in same order
 
 1 week
+- misc stuff from Dart
 - HUD elements from Dart
 - images from Dart
 
@@ -17,6 +15,12 @@ Next steps (overview) -- details for each below in same order
 #############################################################################
 ##########                         1 week                          ##########
 #############################################################################
+#############################################################################
+- misc stuff from Dart:
+    - fields for `type alias Azimuth` (wolverine)
+    - fields for `type alias Power` (wolverine)
+    - logic for Azimuth and line drawing (together; primarily wolverine)
+
 #############################################################################
 - HUD elements from Dart:
     - clear-lobs button (wolverine) 
