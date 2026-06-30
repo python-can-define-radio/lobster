@@ -23,6 +23,7 @@ type alias Model =
     , zoom : Float
     , input : String
     , submittedText : String
+    , isGatheringLobs : Bool
     }
 
 
@@ -76,6 +77,7 @@ type Msg
     | ClearLobs
     | InputChanged String
     | Submit
+    | ToggleGatherLobs
 
 
 initialModel : Model
@@ -104,6 +106,7 @@ initialModel =
     , zoom = 1.0
     , input = ""
     , submittedText = ""
+    , isGatheringLobs = True
     }
 
 
@@ -131,9 +134,15 @@ move dt m =
 
 timestep : Float -> Model -> Model
 timestep dt m =
-    m
-        |> move dt
-        |> addCurrentLob
+    if m.isGatheringLobs then
+        m |> move dt |> addCurrentLob
+    else
+        m |> move dt
+-- timestep : Float -> Model -> Model
+-- timestep dt m =
+--     let addIfGath = 
+--         if m.isGatheringLobs then addCurrentLob else \x -> x
+
 
 
 addCurrentLob : Model -> Model
@@ -215,6 +224,9 @@ update msg m =
 
         ClearLobs ->
             ( { m | lobs = [] }, Cmd.none )
+
+        ToggleGatherLobs ->
+            ( { m | isGatheringLobs = not m.isGatheringLobs }, Cmd.none )
 
         InputChanged newText ->
             ( updateInput newText m, Cmd.none )
@@ -309,8 +321,9 @@ tabletView m =
                 [ class "lobs-canvas" ]
                 (lobsScene m)
             , posText m
-            , tabletButtons
+            , tabletButtons m
             , clearLobsButton
+            , gatherLobsButton m
             , recenterButton m
             , messagesOverlay m
             , inputForm m
@@ -446,8 +459,8 @@ tabletBckgrd =
     ]
 
 
-tabletButtons : Html Msg
-tabletButtons =
+tabletButtons : Model -> Html Msg
+tabletButtons m =
     div [ class "tablet-buttons" ]
         [ iconButton "fa-solid fa-object-group fa-2x"
         , zoomInButton 
@@ -460,6 +473,28 @@ iconButton : String -> Html Msg
 iconButton iconName =
     button [ Html.Attributes.title "Merge", class "game-btn" ]
            [ i [ class iconName ] [] ]
+
+
+gatherLobsButton : Model -> Html Msg
+gatherLobsButton m =
+    let
+        isOn =
+            m.isGatheringLobs
+    in
+    button
+        [ class "lob-btn game-btn"
+        , onClick ToggleGatherLobs
+        , Html.Attributes.title "Toggle LOB gathering"
+        ]
+        [ i
+            [ class
+                (if isOn then
+                    "fa-solid fa-pause fa-2x col-red"
+                 else
+                    "fa-solid fa-play fa-2x")
+            ]
+            []
+        ]
 
 
 zoomInButton : Html Msg
