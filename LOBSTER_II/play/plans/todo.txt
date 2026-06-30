@@ -1,8 +1,6 @@
 Next steps (overview) -- details for each below in same order
 
 1 week
-- Lob randomization
-- Lob power
 - Submit button
 - Merge button
 - images from Dart
@@ -18,8 +16,6 @@ Next steps (overview) -- details for each below in same order
 ##########                         1 week                          ##########
 #############################################################################
 #############################################################################
-- Lob randomization to simulate imprecision
-- Lob power displayed
 - Submit button to check coordinates of transmitter
 - Merge button to merge canvasses
 

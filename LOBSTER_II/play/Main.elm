@@ -91,16 +91,7 @@ initialModel =
     { player = { x = 100, y = 100 }
     , dirx = 0
     , diry = 0
-    , lobs =
-        [ { source = { x = 100, y = 100 }
-          , azimuth = azimuthFromPositions { x = 100, y = 100 } tx
-          , power = { mW = 8 }
-          }
-        , { source = { x = 100, y = 102 }
-          , azimuth = azimuthFromPositions { x = 100, y = 102 } tx
-          , power = { mW = 15 }
-          }
-        ]
+    , lobs = []
     , transmitter = tx
     , panCenter = Nothing
     , isMouseDown = False
@@ -138,7 +129,7 @@ addCurrentLobWithNoise : Float -> Model -> Model
 addCurrentLobWithNoise noise m =
     { m
         | lobs =
-            m.lobs ++ [ currentLobWithNoise noise m ]
+            currentLobWithNoise noise m :: m.lobs
     }
 
 
@@ -160,10 +151,31 @@ currentLobWithNoise noise m =
             , sinresult =
                 base.cosresult * sinA + base.sinresult * cosA
             }
+
+        dx =
+            m.player.x - m.transmitter.x
+
+        dy =
+            m.player.y - m.transmitter.y
+
+        dist =
+            sqrt (dx * dx + dy * dy)
+
+        basePower =
+            100.0
+
+        powerLinear =
+            basePower / (1 + (dist * dist))
+
+        power =
+            if powerLinear <= 0 then
+                -120
+            else
+                10 * logBase 10 powerLinear
     in
     { source = m.player
     , azimuth = rotated
-    , power = { mW = 10 }
+    , power = { mW = power }
     }
 
 
@@ -340,6 +352,7 @@ tabletView m =
             , gatherLobsButton m
             , recenterButton m
             , messagesOverlay m
+            , lobPowerView m
             , inputForm m
             ]
         ]
@@ -652,6 +665,28 @@ inputForm m =
             ]
             [ text "Submit" ]
         ]
+
+
+lobPowerView : Model -> Html Msg
+lobPowerView m =
+    div [ class "lob-power" ]
+        [ case List.head m.lobs of
+            Just lob ->
+                viewLobPower lob
+
+            Nothing ->
+                text "Power: ___ dB" ]
+
+
+format2dp : Float -> String
+format2dp value =
+    String.fromFloat (toFloat (round (value * 100)) / 100)
+
+
+viewLobPower : Lob -> Html Msg
+viewLobPower lob =
+    div []
+        [ text ("Power: " ++ format2dp lob.power.mW ++ " dB") ]
 
 
 subscriptions : Model -> Sub Msg
