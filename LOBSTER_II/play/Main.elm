@@ -15,7 +15,8 @@ type alias Model =
     { player : WPoint
     , dirx : Float
     , diry : Float
-    , lobs : List BadLob
+    , lobs : List Lob
+    , transmitter : WPoint
     , panCenter : Maybe WPoint
     , isMouseDown : Bool
     , showMessages : Bool
@@ -44,13 +45,14 @@ type alias CDiff =
 
 
 type alias Azimuth =
-    { fillthisfromdart: Float
+    { sinresult : Float
+    , cosresult : Float
     }
 
 
 type alias Power =
-    { fillthisfromdart: Float
-    }    
+    { mW : Float
+    }
 
 
 type alias Lob =
@@ -58,11 +60,6 @@ type alias Lob =
     , azimuth : Azimuth
     , power : Power
     }
-
-
-type alias BadLob = 
-    { start: WPoint
-    , end: WPoint }
 
 
 type Msg
@@ -82,11 +79,24 @@ type Msg
 
 initialModel : Model
 initialModel =
+    let
+        tx =
+            { x = 220, y = 140 }
+    in
     { player = { x = 100, y = 100 }
     , dirx = 0
     , diry = 0
-    , lobs = [ { start = {x = 0, y = 0}, end = {x = 100, y = 200} }
-               , { start = {x = 100, y = 0}, end = {x = -100, y = 200} }]
+    , lobs =
+        [ { source = { x = 100, y = 100 }
+          , azimuth = azimuthFromPositions { x = 100, y = 100 } tx
+          , power = { mW = 8 }
+          }
+        , { source = { x = 100, y = 102 }
+          , azimuth = azimuthFromPositions { x = 100, y = 102 } tx
+          , power = { mW = 15 }
+          }
+        ]
+    , transmitter = tx
     , panCenter = Nothing
     , isMouseDown = False
     , showMessages = False
@@ -293,31 +303,81 @@ recenterButton m =
 lifeScene : Model -> List Renderable
 lifeScene m =
     let
-        center = m.player
-        zoom = 1
+        center =
+            m.player
+
+        zoom =
+            1
     in
-        lifeBckgrd
-            ++ bushesView zoom center
-            ++ avatarView zoom center m.player
+    lifeBckgrd
+        ++ bushesView zoom center
+        ++ transmitterView zoom center m.transmitter
+        ++ avatarView zoom center m.player
 
 
 tabletScene : Model -> List Renderable
 tabletScene m =
-    let center = cameraCenter m in
+    let
+        center =
+            cameraCenter m
+    in
     tabletBckgrd
         ++ bushesView m.zoom center
+        ++ transmitterView m.zoom center m.transmitter
         ++ avatarView m.zoom center m.player
         ++ lobsView m.zoom center m.lobs
 
 
-lobsView : Float -> WPoint -> List BadLob -> List Renderable
-lobsView zoom center lobs = 
+lobsView : Float -> WPoint -> List Lob -> List Renderable
+lobsView zoom center lobs =
     let
-        drawOneLob : BadLob -> Shape
-        drawOneLob lob = oCZLine zoom center lob.start lob.end
+        drawOneLob : Lob -> Shape
+        drawOneLob lob =
+            oCZLine zoom center lob.source (lobEndpoint lob)
     in
-        [ shapes [ stroke Color.orange ]
-                 ( List.map drawOneLob lobs ) ]
+    [ shapes [ stroke Color.orange ]
+        (List.map drawOneLob lobs)
+    ]
+
+
+lobLength : Float
+lobLength =
+    50000
+
+
+lobEndpoint : Lob -> WPoint
+lobEndpoint lob =
+    { x = lob.source.x + lob.azimuth.cosresult * lobLength
+    , y = lob.source.y + lob.azimuth.sinresult * lobLength
+    }
+
+
+azimuthFromPositions : WPoint -> WPoint -> Azimuth
+azimuthFromPositions receiver transmitter =
+    let
+        xd =
+            transmitter.x - receiver.x
+
+        yd =
+            transmitter.y - receiver.y
+
+        dist =
+            sqrt (xd * xd + yd * yd)
+    in
+    { sinresult = yd / dist
+    , cosresult = xd / dist
+    }
+
+
+transmitterView : Float -> WPoint -> WPoint -> List Renderable
+transmitterView zoom center tx =
+    let
+        size =
+            20 * zoom
+    in
+    [ shapes [ fill Color.red ]
+        [ oCZRect zoom center tx size size ]
+    ]
 
 
 

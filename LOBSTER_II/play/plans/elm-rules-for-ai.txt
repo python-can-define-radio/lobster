@@ -1,6 +1,6 @@
-I am making an educational game using Elm. I am providing you my rules in this message. I am going to provide the code in the next message. Do not reply until I start sending requests, which will begin in my third message.
+I am making an educational game using Elm. My current set of rules is below. The next message will be my current code. Do not reply until I ask a question, which will begin in my third message.
 
-Here is my current set of rules.
+
 
 1. You MUST keep all features that have been requested so far. If I request a change and you are unsure whether this implies a feature removal, then you MUST not generate code; instead, you MUST reply with "In order to accomplish this change, do you want me to remove the following features?", followed by a list of features which you would remove.
 2. You MUST break up the code to be very modular by using lots of helper functions with type annotations so that I can better understand the Elm compiler error messages.
