@@ -2,7 +2,7 @@ module Main exposing (main)
 
 import Browser
 import Browser.Events
-import Canvas exposing (Renderable, Shape, lineTo, path, rect, shapes)
+import Canvas exposing (Renderable, Shape, lineTo, path, rect, shapes, clear)
 import Canvas.Settings exposing (fill, stroke)
 import Color
 import Html exposing (Html, button, div, form, i, input, p, text)
@@ -73,6 +73,7 @@ type Msg
     | ZoomIn
     | ZoomOut
     | Recenter
+    | ClearLobs
     | InputChanged String
     | Submit
 
@@ -130,7 +131,25 @@ move dt m =
 
 timestep : Float -> Model -> Model
 timestep dt m =
-    move dt m
+    m
+        |> move dt
+        |> addCurrentLob
+
+
+addCurrentLob : Model -> Model
+addCurrentLob m =
+    { m
+        | lobs =
+            m.lobs ++ [ currentLob m ]
+    }
+
+
+currentLob : Model -> Lob
+currentLob m =
+    { source = m.player
+    , azimuth = azimuthFromPositions m.player m.transmitter
+    , power = { mW = 10 }
+    }
 
 
 cameraCenter : Model -> WPoint
@@ -193,6 +212,9 @@ update msg m =
 
         Recenter ->
             ( { m | panCenter = Nothing }, Cmd.none)
+
+        ClearLobs ->
+            ( { m | lobs = [] }, Cmd.none )
 
         InputChanged newText ->
             ( updateInput newText m, Cmd.none )
@@ -280,9 +302,15 @@ tabletView : Model -> Html Msg
 tabletView m =
     div [ class "hudwrap" ]
         [ div [ class "hud" ]
-            [ Canvas.toHtml (canvW, canvH) [] (tabletScene m)
+            [ Canvas.toHtml (canvW, canvH)
+                [ class "tablet-canvas" ]
+                (tabletScene m)
+            , Canvas.toHtml (canvW, canvH)
+                [ class "lobs-canvas" ]
+                (lobsScene m)
             , posText m
             , tabletButtons
+            , clearLobsButton
             , recenterButton m
             , messagesOverlay m
             , inputForm m
@@ -325,7 +353,19 @@ tabletScene m =
         ++ bushesView m.zoom center
         ++ transmitterView m.zoom center m.transmitter
         ++ avatarView m.zoom center m.player
-        ++ lobsView m.zoom center m.lobs
+
+
+lobsScene : Model -> List Renderable
+lobsScene m =
+    let
+        center =
+            cameraCenter m
+    in
+        ( clear ( 0, 0 ) (toFloat canvW) (toFloat canvH) )
+            :: lobsView m.zoom center m.lobs
+
+
+
 
 
 lobsView : Float -> WPoint -> List Lob -> List Renderable
@@ -441,6 +481,15 @@ messageButton =
     button [ Html.Attributes.title "Messages", class "game-btn", onClick ToggleMessages ]
         [ i [ class "fa-solid fa-envelope fa-2x" ] []
         ]
+
+
+clearLobsButton : Html Msg
+clearLobsButton =
+    button
+        [ class "clear-btn game-btn"
+        , onClick ClearLobs
+        ]
+        [ text "Clear LOBs" ]
 
 
 messagesOverlay : Model -> Html Msg

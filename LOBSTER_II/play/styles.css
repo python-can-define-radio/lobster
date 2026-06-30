@@ -71,14 +71,14 @@ h1 {
     height: 20px;
 }
 
-#clear-btn {
+.clear-btn {
     position: absolute;
     top: 65px;
     right: 50px;
     border: none;
 }
 
-#lobs-btn-with-text {
+.lobs-btn-with-text {
     display: flex;
     align-items: center;
     position: absolute;
@@ -91,13 +91,13 @@ h1 {
     height: 20px;
 }
 
-#lob-btn {
+.lob-btn {
     margin-left: 10px;
     outline: none;
     border: none;
 }
 
-#lob-btn:focus {
+.lob-btn:focus {
     outline: none;
 }
 
@@ -308,4 +308,10 @@ h1 {
 .input-form-textfield {
     margin: 10px;
     padding: 4px;
+}
+
+.lobs-canvas {
+    position: absolute;
+    opacity: 50%;
+    left: 0;
 }
