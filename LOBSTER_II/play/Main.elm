@@ -86,9 +86,9 @@ initialModel : Model
 initialModel =
     let
         tx =
-            { x = 220, y = 140 }
+            { x = 70220, y = 41000 }
     in
-    { player = { x = 100, y = 100 }
+    { player = { x = 70100, y = 40100 }
     , dirx = 0
     , diry = 0
     , lobs = []
@@ -548,7 +548,7 @@ messageButton =
 clearLobsButton : Html Msg
 clearLobsButton =
     button
-        [ class "clear-btn game-btn"
+        [ Html.Attributes.title "Clear lobs", class "clear-btn game-btn"
         , onClick ClearLobs
         ]
         [ text "Clear LOBs" ]
@@ -582,13 +582,13 @@ missionMessage =
 
 bushes : List WPoint
 bushes =
-    [ { x = 200, y = 300 }
-    , { x = 400, y = 150 }
-    , { x = 0, y = 0 }
-    , { x = -100, y = -100 }
-    , { x = 100, y = 100 }
-    , { x = -100, y = 100 }
-    , { x = 100, y = -100 }
+    [ { x = 70200, y = 40300 }
+    , { x = 70400, y = 40150 }
+    , { x = 70000, y = 40000 }
+    , { x = 69900, y = 39900 }
+    , { x = 70100, y = 40100 }
+    , { x = 69900, y = 40100 }
+    , { x = 70100, y = 39900 }
     ]
 
 

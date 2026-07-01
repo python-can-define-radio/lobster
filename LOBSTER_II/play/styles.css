@@ -132,7 +132,7 @@ h1 {
 
 .game-btn:hover {
     background-color: #aaa;
-    cursor: none;
+    cursor: crosshair;
 }
 
 .game-btn.button-active {
