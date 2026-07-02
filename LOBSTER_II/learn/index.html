@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="scaffolded-by" content="https://github.com/dart-lang/sdk">
+    <title>LOBSTER</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="https://unpkg.com/elm-canvas@2.2.4/elm-canvas.js"></script>
+    <script src="Textures.js"></script>
+</head>
+
+<body>
+    <div class="settings-menu">
+        <details>
+            <summary class="game-btn summary" title="Settings">
+                <i class="fa-solid fa-gear fa-2x"></i>
+            </summary>
+            <div class="settings-panel">
+                <a class="game-btn summary" href="instructions.html">Controls</a><br>
+                <a class="game-btn summary" href="credits.html">Credits</a><br>
+                <a class="game-btn summary" href="https://github.com/python-can-define-radio/lobster/blob/main/LICENSE"
+                    target="_blank">License</a>
+            </div>
+        </details>
+    </div>
+    <h1>LOBSTER</h1>
+    <div id="gameroot"></div>
+    <div class="directions">
+        <p>Directions: Find the transmitter using Lines of Bearing.<br>
+            - Use the 'W', 'A', 'S', 'D' for player movement<br>
+            - Use the 'Shift' key to run
+        </p>
+    </div>
+    <a href="instructions.html" class="links">Controls</a>
+    <a href="credits.html" class="links">Credits</a>
+    <a href="https://github.com/python-can-define-radio/lobster/blob/main/LICENSE" target="_blank"
+        class="links">License: MIT</a>
+    <script>
+        var app = Elm.Textures.init({ node: document.querySelector('#gameroot') })
+        // you can use ports and stuff here
+    </script>
+</body>
+
+</html>
