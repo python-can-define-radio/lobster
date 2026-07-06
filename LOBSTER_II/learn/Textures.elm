@@ -1,4 +1,5 @@
 -- based on https://github.com/joakin/elm-canvas/blob/master/examples/Textures.elm
+
 module Textures exposing (main)
 
 import Browser
@@ -15,63 +16,48 @@ import Random
 import Time exposing (Posix)
 
 
-
-main : Program () Model Msg
-main =
-    Browser.element { init = \_ -> ( initialModel, Cmd.none ), update = update, subscriptions = subscriptions, view = view }
-
-
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    onAnimationFrameDelta AnimationFrame
+    onAnimationFrameDelta Tick
 
+canvH : number
+canvH = 400
 
-h : number
-h =
-    400
-
-
-w : number
-w =
-    600
+canvW : number
+canvW = 600
     
-
 type alias Model =
     { time : Float
     , playerTextures : Maybe PlayerTextures
-    , soloImage : Maybe Texture
     }
-
 
 type alias PlayerTextures =
     { standby : Texture
-    , up : Texture
-    , down : Texture
+    , lff : Texture
+    , rff : Texture
     }
 
-
 type Msg
-    = AnimationFrame Float
-    | Texture1Loaded (Maybe Texture)
-    -- | Texture2Loaded (Maybe Texture)
+    = Tick Float
+    | TextureAvSheetLoaded (Maybe Texture)
 
 
 initialModel : Model
-initialModel = { time = 0, playerTextures = Nothing, soloImage = Nothing }
+initialModel = { time = 0, playerTextures = Nothing }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        AnimationFrame delta ->
+        Tick delta ->
             ( { model | time = model.time + delta }
             , Cmd.none
             )
 
-        Texture1Loaded Nothing ->
+        TextureAvSheetLoaded Nothing ->
             ( model, Cmd.none )
 
-        Texture1Loaded (Just spriteSheet) ->
+        TextureAvSheetLoaded (Just avSheet) ->
             ( { model
                 | playerTextures =
                     let
@@ -84,73 +70,52 @@ update msg model =
                                 , width = cell
                                 , height = cell
                                 }
-                                spriteSheet
+                                avSheet
                     in
                     Just
                         { standby = sprite 1 3 
-                        , up = sprite 0 3 
-                        , down = sprite 2 3
+                        , lff = sprite 0 3 
+                        , rff = sprite 2 3
                         }
               }
             , Cmd.none
             )
-        
-        -- Texture2Loaded Nothing ->
-        --     ( { model | playerTextures = Failure }
-        --     , Cmd.none
-        --     )
-        
-        -- Texture2Loaded (Just t) ->
-        --     ( { model | soloImage = Just t }
-        --     , Cmd.none )
 
 
 textures : List (Texture.Source Msg)
 textures =
-    [ Texture.loadFromImageUrl "../assets/avatar_sheet.png" Texture1Loaded
-    -- , Texture.loadFromImageUrl "../assets/tx.png" Texture2Loaded
+    [ Texture.loadFromImageUrl "../assets/avatar_sheet.png" TextureAvSheetLoaded
     ]
 
 
-
-
-
-
 view : Model -> Html Msg
-view model =
-    Canvas.toHtmlWith
-        canvasSettings
-        []
-        ( background
-            :: (case model.playerTextures of
-                    Just ss ->
-                        [ walkingAnimation model.time ss ]
+view m =
+    Canvas.toHtmlWith canvasSettings [] ( lifeScene m )
 
-                    Nothing ->
-                        []
-               )
-        )
-
-background : Renderable
-background = shapes [ fill (Color.green) ] [ rect ( 0, 0 ) w h ]
+lifeScene : Model -> List Renderable
+lifeScene m = background ++ player m
 
 
-canvasSettings = { width = w
-        , height = h
+player : Model -> List Renderable
+player m =
+    case m.playerTextures of
+        Just avSheet ->
+            [ walkingAnimation m.time avSheet ]
+
+        Nothing ->
+            []
+        
+
+background : List Renderable
+background = [ shapes [ fill (Color.green) ] [ rect ( 0, 0 ) canvW canvH ] ]
+
+
+canvasSettings = { width = canvW
+        , height = canvH
         , textures = textures
         }
 
-
--- centeredImage : Float -> Float -> Float -> Float -> NotSure
--- centeredImage x y w h =
---     let
---         xcentered = x - w/2
---         ycentered = y - h/2
---     in
---     somethingthatprobablydrawsanimage (xcentered, ycentered) w h
-
-
-               
+     
 zoomedTexture : Float -> Float -> Float -> Texture -> Renderable
 zoomedTexture zoom x y t =
     texture [ transform [ scale zoom zoom ] ] ( x, y ) t
@@ -165,15 +130,23 @@ walkingAnimation time playerTextures =
                 t : Texture
                 t =
                     if thirdsofsec < 333 then
-                        playerTextures.down
+                        playerTextures.rff
 
                     else if thirdsofsec < 666 then
                         playerTextures.standby
 
                     else
-                        playerTextures.up
+                        playerTextures.lff
 
             in
-            zoomedTexture (time / 5000) 20 200 t
+            zoomedTexture (time / 5000) 20 (200 - time / 500) t
             
             
+main : Program () Model Msg
+main =
+    Browser.element
+        { init = \_ -> ( initialModel, Cmd.none )
+        , update = update
+        , view = view 
+        , subscriptions = subscriptions
+        }

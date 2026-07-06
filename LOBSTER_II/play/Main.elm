@@ -5,6 +5,12 @@ import Browser.Events
 import Canvas exposing (Renderable, Shape, lineTo, path, rect, shapes, clear)
 import Canvas.Settings exposing (fill, stroke)
 import Color
+import Canvas.Texture exposing (Texture)
+import Canvas
+-- import Canvas.Settings exposing (..)
+import Canvas.Settings.Advanced exposing (transform, scale)
+-- import Canvas.Settings.Text exposing (..)
+import Canvas.Texture as Texture
 import Html exposing (Html, button, div, form, i, input, p, text)
 import Html.Attributes exposing (class, placeholder, type_, value)
 import Html.Events exposing (onClick, onInput, onSubmit)
@@ -25,6 +31,15 @@ type alias Model =
     , input : String
     , submittedText : String
     , isGatheringLobs : Bool
+    , time : Float
+    , playerTextures : Maybe PlayerTextures 
+    }
+
+
+type alias PlayerTextures =
+    { standby : Texture
+    , lff : Texture
+    , rff : Texture
     }
 
 
@@ -80,6 +95,7 @@ type Msg
     | Submit
     | ToggleGatherLobs
     | GotLobNoise Float
+    | TextureAvSheetLoaded (Maybe Texture)
 
 
 initialModel : Model
@@ -100,6 +116,8 @@ initialModel =
     , input = ""
     , submittedText = ""
     , isGatheringLobs = True
+    , time = 0
+    , playerTextures = Nothing
     }
 
 
@@ -107,14 +125,19 @@ distperMs : Float
 distperMs = 0.2
 
 
-canvW : Int
+canvW : number
 canvW = 600
 
 
-canvH : Int
+canvH : number
 canvH = 400
 
 
+textures : List (Texture.Source Msg)
+textures =
+    [ Texture.loadFromImageUrl "../assets/avatar_sheet.png" TextureAvSheetLoaded
+    ]
+    
 move : Float -> Model -> Model
 move dt m =
     { m
@@ -217,12 +240,7 @@ update msg m =
             ( handleUp k m, Cmd.none )
 
         Tick dt ->
-            if m.isGatheringLobs then
-                ( m |> move dt
-                , Random.generate GotLobNoise (Random.float -0.05 0.05)
-                )
-            else
-                ( move dt m, Cmd.none )
+            ( move dt m, lobNoise m )
 
         MouseDown ->
             ( { m | isMouseDown = True }, Cmd.none )
@@ -259,6 +277,42 @@ update msg m =
 
         Submit ->
             ( submitInput m, Cmd.none )
+
+        TextureAvSheetLoaded Nothing ->
+            ( m, Cmd.none )
+
+        TextureAvSheetLoaded (Just avSheet) ->
+            ( { m | playerTextures = Just (texturesFromAvSheet avSheet)}
+            , Cmd.none
+            )
+
+texturesFromAvSheet : Texture -> PlayerTextures
+texturesFromAvSheet avSheet = 
+    let
+        cell = 256
+
+        sprite x y =
+            Texture.sprite
+                { x = x * cell
+                , y = y * cell
+                , width = cell
+                , height = cell
+                }
+                avSheet
+    in
+        { standby = sprite 1 3 
+        , lff = sprite 0 3 
+        , rff = sprite 2 3
+        }
+
+
+
+
+lobNoise : Model -> Cmd Msg
+lobNoise m =
+    if m.isGatheringLobs
+    then Random.generate GotLobNoise (Random.float -0.05 0.05)
+    else Cmd.none
 
 
 handleMouseMove : CDiff -> Model -> Model
@@ -304,7 +358,7 @@ handleDown : String -> Model -> Model
 handleDown k m =
     case String.toLower k of
         "w" ->
-            { m | diry = 1 }
+            { m | diry = 10 }
 
         "s" ->
             { m | diry = -1 }
@@ -328,12 +382,19 @@ view m =
             ]
         ]
 
-
+        
 lifeView : Model -> Html Msg
 lifeView m =
-    div [ class "life" ]
-        [ Canvas.toHtml (canvW, canvH) [] (lifeScene m)
-        ]
+    let
+        canvasSettings =
+            { width = canvW
+            , height = canvH
+            , textures = textures
+            }
+    in
+        div [ class "life" ]
+            [ Canvas.toHtmlWith canvasSettings [] ( lifeScene m )
+            ]
 
 
 tabletView : Model -> Html Msg
@@ -368,6 +429,7 @@ recenterButton m =
                    [ text "Re-center" ]
 
 
+
 lifeScene : Model -> List Renderable
 lifeScene m =
     let
@@ -381,6 +443,7 @@ lifeScene m =
         ++ bushesView zoom center
         ++ transmitterView zoom center m.transmitter
         ++ avatarView zoom center m.player
+        ++ playerRend m
 
 
 tabletScene : Model -> List Renderable
@@ -461,7 +524,42 @@ transmitterView zoom center tx =
 
 
 
+playerRend : Model -> List Renderable
+playerRend m =
+    case m.playerTextures of
+        Just avSheet ->
+            [ walkingAnimation m.time avSheet ]
 
+        Nothing ->
+            []
+
+
+walkingAnimation : Float -> PlayerTextures -> Renderable
+walkingAnimation time playerTextures =
+            let
+                thirdsofsec : Int
+                thirdsofsec = time |> round |> remainderBy 1000
+
+                t : Texture
+                t =
+                    if thirdsofsec < 333 then
+                        playerTextures.rff
+
+                    else if thirdsofsec < 666 then
+                        playerTextures.standby
+
+                    else
+                        playerTextures.lff
+
+            in
+            zoomedTexture (0.5) 600 400 t
+
+
+zoomedTexture : Float -> Float -> Float -> Texture -> Renderable
+zoomedTexture zoom x y t =
+    Canvas.texture [ transform [ scale zoom zoom ] ] ( x, y ) t
+
+    
 avatarView : Float -> WPoint -> WPoint -> List Renderable
 avatarView zoom center player =
     let
