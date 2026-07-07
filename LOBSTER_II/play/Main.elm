@@ -32,6 +32,7 @@ type alias Model =
     , time : Float
     , facing : Facing
     , playerTextures : Maybe PlayerTextures
+    , bushTexture : Maybe Texture
     }
 
 
@@ -111,6 +112,7 @@ type Msg
     | ToggleGatherLobs
     | GotLobNoise Float
     | TextureAvSheetLoaded (Maybe Texture)
+    | TextureBushLoaded (Maybe Texture)
 
 
 initialModel : Model
@@ -130,6 +132,7 @@ initialModel =
     , time = 0
     , facing = FaceDown
     , playerTextures = Nothing
+    , bushTexture = Nothing
     }
 
 
@@ -148,6 +151,8 @@ canvH = 400
 textures : List (Texture.Source Msg)
 textures =
     [ Texture.loadFromImageUrl "../assets/avatar_sheet2.png" TextureAvSheetLoaded
+    , Texture.loadFromImageUrl "../assets/bush_1.png" TextureBushLoaded
+    , Texture.loadFromImageUrl "../assets/bush_2.png" TextureBushLoaded
     ]
     
 move : Float -> Model -> Model
@@ -313,6 +318,14 @@ update msg m =
             ( { m | playerTextures = Just (texturesFromAvSheet avSheet)}
             , Cmd.none
             )
+        
+        TextureBushLoaded (Just texture) ->
+            ( { m | bushTexture = Just texture }
+            , Cmd.none
+            )
+        
+        TextureBushLoaded Nothing ->
+            ( m, Cmd.none )
 
 texturesFromAvSheet : Texture -> PlayerTextures
 texturesFromAvSheet avSheet =
@@ -526,7 +539,7 @@ lifeScene m =
             1
     in
     lifeBckgrd
-        ++ bushesView zoom center
+        ++ bushesView m.bushTexture zoom center
         ++ transmitterView zoom center m.transmitter
         ++ avatarRender zoom center m
 
@@ -538,7 +551,7 @@ tabletScene m =
             cameraCenter m
     in
     tabletBckgrd
-        ++ bushesView m.zoom center
+        ++ bushesView m.bushTexture m.zoom center
         ++ transmitterView m.zoom center m.transmitter
         ++ avatarRender m.zoom center m
 
@@ -628,18 +641,18 @@ walkingAnimation zoom center m playerTextures =
 
         frame : Int
         frame =
-            if isMoving model then
+            if isMoving m then
                 (round m.time // 150) |> remainderBy 4
 
             else
-                idleFrame model.facing
+                idleFrame m.facing
 
         texture : Texture
         texture =
             frameTexture frame cycle
 
     in
-    oCZTexture {zoom = zoom, center = center, point = model.player} 256 256 texture
+    oCZTexture {zoom = zoom, center = center, point = m.player} 256 256 texture
 
 
 currentWalkCycle : Facing -> PlayerTextures -> WalkCycle
@@ -810,18 +823,24 @@ bushes =
     ]
 
 
-bushesView : Float -> WPoint -> List Renderable
-bushesView zoom center =
-    List.map (bushView zoom center) bushes
+bushesView : Maybe Texture -> Float -> WPoint -> List Renderable
+bushesView bushTexture zoom center =
+    List.map (bushView bushTexture zoom center) bushes
 
 
-bushView : Float -> WPoint -> WPoint -> Renderable
-bushView zoom center bushLoc =
-    let 
-        size = 20 * zoom
+bushView : Maybe Texture -> Float -> WPoint -> WPoint -> Renderable
+bushView bushTexture zoom center bushLoc =
+    let
+        size =
+            20 * zoom
     in
-        shapes [ fill Color.green ]
-               [ oCZRect zoom center bushLoc size size ]
+    case bushTexture of
+        Just texture ->
+            oCZTexture {zoom = zoom, center = center, point = bushLoc} size size texture
+
+        Nothing ->
+            shapes [ fill Color.green ]
+                [ oCZRect zoom center bushLoc size size ]
 
 
 -- offset centered zoomed image (texture)
