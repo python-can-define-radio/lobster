@@ -4,6 +4,7 @@ Next steps (overview) -- details for each below in same order
 - Submit button
 - Merge button
 - images from Dart
+- LOB simulation
 
 1 month:
 - sound fx
@@ -21,8 +22,6 @@ Next steps (overview) -- details for each below in same order
 
 #############################################################################
 - images from Dart
-    - avatar images
-        - walking animation
     - road; bush images (together)
 
 #############################################################################

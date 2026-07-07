@@ -24,7 +24,7 @@ type alias Model =
     , transmitter : WPoint
     , panCenter : Maybe WPoint
     , isMouseDown : Bool
-    , showMessages : Bool
+    , overlayShown : Bool
     , zoom : Float
     , input : String
     , submittedText : String
@@ -101,7 +101,7 @@ type Msg
     | MouseDown
     | MouseMove (Float, Float)
     | MouseUp
-    | ToggleMessages
+    | ToggleOverlay
     | ZoomIn
     | ZoomOut
     | Recenter
@@ -115,18 +115,14 @@ type Msg
 
 initialModel : Model
 initialModel =
-    let
-        tx =
-            { x = 70220, y = 41000 }
-    in
     { player = { x = 70100, y = 40100 }
     , dirx = 0
     , diry = 0
     , lobs = []
-    , transmitter = tx
+    , transmitter = { x = 70220, y = 41000 }
     , panCenter = Nothing
     , isMouseDown = False
-    , showMessages = False
+    , overlayShown = False
     , zoom = 1.0
     , input = ""
     , submittedText = ""
@@ -151,7 +147,7 @@ canvH = 400
 
 textures : List (Texture.Source Msg)
 textures =
-    [ Texture.loadFromImageUrl "../assets/avatar_sheet.png" TextureAvSheetLoaded
+    [ Texture.loadFromImageUrl "../assets/avatar_sheet2.png" TextureAvSheetLoaded
     ]
     
 move : Float -> Model -> Model
@@ -218,6 +214,11 @@ currentLobWithNoise noise m =
     }
 
 
+accumulateTime : Float -> Model -> Model
+accumulateTime dt m =
+    { m | time = m.time + dt }
+
+
 cameraCenter : Model -> WPoint
 cameraCenter m =
     case m.panCenter of
@@ -228,10 +229,17 @@ cameraCenter m =
             m.player
 
 
-worldToCanvas : Float -> WPoint -> WPoint -> CPoint
-worldToCanvas zoom center p =
-    { cx = zoom * (p.x - center.x) + toFloat canvW / 2
-    , cy = zoom * (center.y - p.y) + toFloat canvH / 2
+type alias PosInfo =
+    { zoom : Float
+    , center : WPoint
+    , point : WPoint
+    }
+
+
+worldToCanvas : PosInfo -> CPoint
+worldToCanvas {zoom, center, point} =
+    { cx = zoom * (point.x - center.x) + canvW / 2
+    , cy = zoom * (center.y - point.y) + canvH / 2
     }
 
 
@@ -256,10 +264,9 @@ update msg m =
             ( handleUp k m, Cmd.none )
 
         Tick dt ->
-            ( move dt
-                { m
-                    | time = m.time + dt
-                }
+            ( m
+                |> accumulateTime dt
+                |> move dt 
             , lobNoise m
             )
 
@@ -272,8 +279,8 @@ update msg m =
         MouseMove (dx, dy) ->
             ( handleMouseMove {cdx = dx, cdy = dy} m, Cmd.none )
 
-        ToggleMessages ->
-            ( { m | showMessages = not m.showMessages }, Cmd.none )
+        ToggleOverlay ->
+            ( { m | overlayShown = not m.overlayShown }, Cmd.none )
 
         ZoomIn ->
             ( { m | zoom = m.zoom * 2 }, Cmd.none)
@@ -290,8 +297,8 @@ update msg m =
         ToggleGatherLobs ->
             ( { m | isGatheringLobs = not m.isGatheringLobs }, Cmd.none )
 
-        GotLobNoise angle ->
-            ( addCurrentLobWithNoise angle m, Cmd.none )
+        GotLobNoise noise ->
+            ( addCurrentLobWithNoise noise m, Cmd.none )
 
         InputChanged newText ->
             ( updateInput newText m, Cmd.none )
@@ -455,6 +462,10 @@ view m =
             [ lifeView m
             , tabletView m
             ]
+        , div [] [ text <|
+            case m.submittedText of 
+                "" -> ""
+                _ -> "You submitted: " ++ m.submittedText ]
         ]
 
         
@@ -602,23 +613,23 @@ avatarRender : Float -> WPoint -> Model -> List Renderable
 avatarRender zoom center m =
     case m.playerTextures of
         Just playerTextures ->
-            [ walkingAnimation m.time zoom center m playerTextures ]
+            [ walkingAnimation zoom center m playerTextures ]
 
         Nothing ->
             []
 
 
-walkingAnimation : Float -> Float -> WPoint -> Model -> PlayerTextures -> Renderable
-walkingAnimation time zoom center model playerTextures =
+walkingAnimation : Float -> WPoint -> Model -> PlayerTextures -> Renderable
+walkingAnimation zoom center m playerTextures =
     let
         cycle : WalkCycle
         cycle =
-            currentWalkCycle model.facing playerTextures
+            currentWalkCycle m.facing playerTextures
 
         frame : Int
         frame =
             if isMoving model then
-                (round time // 150) |> remainderBy 4
+                (round m.time // 150) |> remainderBy 4
 
             else
                 idleFrame model.facing
@@ -628,7 +639,7 @@ walkingAnimation time zoom center model playerTextures =
             frameTexture frame cycle
 
     in
-    oCZTexture zoom center model.player 256 256 texture
+    oCZTexture {zoom = zoom, center = center, point = model.player} 256 256 texture
 
 
 currentWalkCycle : Facing -> PlayerTextures -> WalkCycle
@@ -747,7 +758,7 @@ zoomOutButton =
 
 messageButton : Html Msg
 messageButton =
-    button [ Html.Attributes.title "Messages", class "game-btn", onClick ToggleMessages ]
+    button [ Html.Attributes.title "Messages", class "game-btn", onClick ToggleOverlay ]
         [ i [ class "fa-solid fa-envelope fa-2x" ] []
         ]
 
@@ -763,7 +774,7 @@ clearLobsButton =
 
 messagesOverlay : Model -> Html Msg
 messagesOverlay m =
-    if m.showMessages then
+    if m.overlayShown then
         div [ class "overlay" ]
             [ overlayBackButton
             , missionMessage
@@ -775,7 +786,7 @@ messagesOverlay m =
 
 overlayBackButton : Html Msg
 overlayBackButton =
-    button [ Html.Attributes.title "Back", class "backbtn game-btn", onClick ToggleMessages ]
+    button [ Html.Attributes.title "Back", class "backbtn game-btn", onClick ToggleOverlay ]
            [ i [ class "fa-solid fa-chevron-left fa-2x" ] [] ]
 
 
@@ -814,12 +825,12 @@ bushView zoom center bushLoc =
 
 
 -- offset centered zoomed image (texture)
-oCZTexture : Float -> WPoint -> WPoint -> Float -> Float -> Texture -> Renderable
-oCZTexture zoom center worldPos width height texture =
+oCZTexture : PosInfo -> Float -> Float -> Texture -> Renderable
+oCZTexture posInfo width height texture =
     let
         canvpoint : CPoint
         canvpoint =
-            worldToCanvas zoom center worldPos
+            worldToCanvas posInfo
 
         spriteScale : Float
         spriteScale =
@@ -840,7 +851,7 @@ oCZRect : Float -> WPoint -> WPoint -> Float -> Float -> Shape
 oCZRect zoom center wp w h =
     let
         canvpoint : CPoint
-        canvpoint = worldToCanvas zoom center wp
+        canvpoint = worldToCanvas {zoom = zoom, center = center, point = wp}
         xcentered = canvpoint.cx - w/2
         ycentered = canvpoint.cy - h/2
     in
@@ -851,8 +862,8 @@ oCZRect zoom center wp w h =
 oCZLine : Float -> WPoint -> WPoint -> WPoint -> Shape
 oCZLine zoom center begin end =
     let
-        canvb = worldToCanvas zoom center begin
-        canve = worldToCanvas zoom center end
+        canvb = worldToCanvas { zoom = zoom, center = center, point = begin}
+        canve = worldToCanvas { zoom = zoom, center = center, point = end}
     in
     drawLineRaw canvb canve
 
