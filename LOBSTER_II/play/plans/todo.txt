@@ -1,15 +1,16 @@
 Next steps (overview) -- details for each below in same order
 
 1 week
-- Submit button
-- Merge button
-- images from Dart
-- LOB simulation
+- Buttons
+- Bush randomness
+- Gridlines
+- Road
+- LOBs
+- Missions
 
 1 month:
 - sound fx
 
-3 months:
 
 
 #############################################################################
@@ -17,20 +18,43 @@ Next steps (overview) -- details for each below in same order
 ##########                         1 week                          ##########
 #############################################################################
 #############################################################################
-- Submit button to check coordinates of transmitter
-- Merge button to merge canvasses
+Buttons
+    Zooming:
+    - bushes and avatar don't zoom correctly. (wolverine)
+    - Also, reincorporate clamping on avatar size when zooming out. (wolverine)
+    Submit button to check coordinates of transmitter (together)
+    Merge button to merge canvasses (together)
+    Message button: Mission message needs to be brought from Dart. (wolverine)
 
 #############################################################################
-- images from Dart
-    - road; bush images (together)
+Bush randomness
+    We would like to randomize both the position and the image (texture). (wolverine)
 
 #############################################################################
-- better LOB simulation (together)
+Gridlines
+    Re-add them (together)
 
 #############################################################################
+Road
+    Decide whether to do this using spritesheet or 
+      using "plain" draw functions as before.
+      Spritesheet makes it look nicer.
+    Consider procedural generation of roads and perhaps the entire world?
 
 #############################################################################
+LOBs:
+    UI:
+        Selectable lob (view FLAP for a lob)
+    Simulation:
+        Reflections
+        Validating power level reasonableness
 
+#############################################################################
+Missions:
+    - reincorporate mission 1
+    - discuss and execute mission 2.
+        Idea: no closer than __ meters to transmitter or enemy base or whatever
+        Same popup if you get too close - "captured by enemy forces"
 
 #############################################################################
 #############################################################################
@@ -42,28 +66,6 @@ Next steps (overview) -- details for each below in same order
 #############################################################################
 
 
-#############################################################################
-
-
-#############################################################################
-
-
-#############################################################################
-
-
-#############################################################################
-#############################################################################
-##########                        3 months                         ##########
-#############################################################################
-#############################################################################
-
-
-#############################################################################
-
-
-#############################################################################
-
-    
 #############################################################################
 
 

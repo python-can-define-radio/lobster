@@ -14,6 +14,7 @@ import Html.Attributes exposing (class, placeholder, type_, value)
 import Html.Events exposing (onClick, onInput, onSubmit)
 import Json.Decode as Decode
 import Random
+import Set exposing (Set)
 
 
 type alias Model =
@@ -26,13 +27,14 @@ type alias Model =
     , isMouseDown : Bool
     , overlayShown : Bool
     , zoom : Float
-    , input : String
+    , currentText : String
     , submittedText : String
     , isGatheringLobs : Bool
     , time : Float
     , facing : Facing
     , playerTextures : Maybe PlayerTextures
     , bushTexture : Maybe Texture
+    , keysDown : Set String
     }
 
 
@@ -107,10 +109,10 @@ type Msg
     | ZoomOut
     | Recenter
     | ClearLobs
-    | InputChanged String
+    | TextChanged String
     | Submit
     | ToggleGatherLobs
-    | GotLobNoise Float
+    | LobNoiseAvailable Float
     | TextureAvSheetLoaded (Maybe Texture)
     | TextureBushLoaded (Maybe Texture)
 
@@ -126,13 +128,14 @@ initialModel =
     , isMouseDown = False
     , overlayShown = False
     , zoom = 1.0
-    , input = ""
+    , currentText = ""
     , submittedText = ""
     , isGatheringLobs = True
     , time = 0
     , facing = FaceDown
     , playerTextures = Nothing
     , bushTexture = Nothing
+    , keysDown = Set.empty
     }
 
 
@@ -157,24 +160,25 @@ textures =
     
 move : Float -> Model -> Model
 move dt m =
+    let
+        movement =
+            movementVector m
+
+        speed =
+            if isRunning m then
+                distperMs * 2
+            else
+                distperMs
+    in
     { m
         | player =
-            { x = m.player.x + m.dirx * distperMs * dt
-            , y = m.player.y + m.diry * distperMs * dt
+            { x = m.player.x + movement.x * speed * dt
+            , y = m.player.y + movement.y * speed * dt
             }
     }
 
-
-addCurrentLobWithNoise : Float -> Model -> Model
-addCurrentLobWithNoise noise m =
-    { m
-        | lobs =
-            currentLobWithNoise noise m :: m.lobs
-    }
-
-
-currentLobWithNoise : Float -> Model -> Lob
-currentLobWithNoise noise m =
+makeLob : Float -> Model -> Lob
+makeLob noise m =
     let
         base =
             azimuthFromPositions m.player m.transmitter
@@ -302,14 +306,14 @@ update msg m =
         ToggleGatherLobs ->
             ( { m | isGatheringLobs = not m.isGatheringLobs }, Cmd.none )
 
-        GotLobNoise noise ->
-            ( addCurrentLobWithNoise noise m, Cmd.none )
+        LobNoiseAvailable noise ->
+            ( { m | lobs = makeLob noise m :: m.lobs }, Cmd.none )
 
-        InputChanged newText ->
-            ( updateInput newText m, Cmd.none )
+        TextChanged newText ->
+            ( updateText newText m, Cmd.none )
 
         Submit ->
-            ( submitInput m, Cmd.none )
+            ( submitText m, Cmd.none )
 
         TextureAvSheetLoaded Nothing ->
             ( m, Cmd.none )
@@ -389,7 +393,7 @@ texturesFromAvSheet avSheet =
 lobNoise : Model -> Cmd Msg
 lobNoise m =
     if m.isGatheringLobs
-    then Random.generate GotLobNoise (Random.float -0.05 0.05)
+    then Random.generate LobNoiseAvailable (Random.float -0.05 0.05)
     else Cmd.none
 
 
@@ -413,59 +417,36 @@ computeNewPanCenter cdiff m =
     }
 
 
+handleDown : String -> Model -> Model
+handleDown code m =
+    { m | keysDown = Set.insert code m.keysDown }
+
+
 handleUp : String -> Model -> Model
-handleUp k m =
-    case String.toLower k of
-        "w" ->
-            { m | diry = 0 }
-
-        "s" ->
-            { m | diry = 0 }
-
-        "a" ->
-            { m | dirx = 0 }
-
-        "d" ->
-            { m | dirx = 0 }
-
-        _ ->
-            m
+handleUp code m =
+    { m | keysDown = Set.remove code m.keysDown }
 
 
 isMoving : Model -> Bool
 isMoving m =
-    m.dirx /= 0 || m.diry /= 0
+    movementVector m /= { x = 0, y = 0 }
 
 
-handleDown : String -> Model -> Model
-handleDown k m =
-    case String.toLower k of
-        "w" ->
-            { m
-                | diry = 1
-                , facing = FaceUp
-            }
+movementVector : Model -> WPoint
+movementVector m =
+    { x =
+        (if Set.member "KeyD" m.keysDown then 1 else 0)
+        - (if Set.member "KeyA" m.keysDown then 1 else 0)
+    , y =
+        (if Set.member "KeyW" m.keysDown then 1 else 0)
+        - (if Set.member "KeyS" m.keysDown then 1 else 0)
+    }
 
-        "s" ->
-            { m
-                | diry = -1
-                , facing = FaceDown
-            }
 
-        "a" ->
-            { m
-                | dirx = -1
-                , facing = FaceLeft
-            }
-
-        "d" ->
-            { m
-                | dirx = 1
-                , facing = FaceRight
-            }
-
-        _ ->
-            m
+isRunning : Model -> Bool
+isRunning m =
+    Set.member "ShiftLeft" m.keysDown
+        || Set.member "ShiftRight" m.keysDown
 
 
 view : Model -> Html Msg
@@ -635,9 +616,12 @@ avatarRender zoom center m =
 walkingAnimation : Float -> WPoint -> Model -> PlayerTextures -> Renderable
 walkingAnimation zoom center m playerTextures =
     let
+        facing =
+            currentFacing m
+
         cycle : WalkCycle
         cycle =
-            currentWalkCycle m.facing playerTextures
+            currentWalkCycle facing playerTextures
 
         frame : Int
         frame =
@@ -645,7 +629,7 @@ walkingAnimation zoom center m playerTextures =
                 (round m.time // 150) |> remainderBy 4
 
             else
-                idleFrame m.facing
+                idleFrame (currentFacing m)
 
         texture : Texture
         texture =
@@ -653,6 +637,28 @@ walkingAnimation zoom center m playerTextures =
 
     in
     oCZTexture {zoom = zoom, center = center, point = m.player} 256 256 texture
+
+
+currentFacing : Model -> Facing
+currentFacing m =
+    let
+        moving =
+            movementVector m
+    in
+    if moving.x > 0 then
+        FaceRight
+
+    else if moving.x < 0 then
+        FaceLeft
+
+    else if moving.y > 0 then
+        FaceUp
+
+    else if moving.y < 0 then
+        FaceDown
+
+    else
+        FaceDown
 
 
 currentWalkCycle : Facing -> PlayerTextures -> WalkCycle
@@ -892,16 +898,16 @@ drawLineRaw start end =
     path (start.cx, start.cy) [ lineTo (end.cx, end.cy) ]
 
 
-updateInput : String -> Model -> Model
-updateInput newText m =
-    { m | input = newText }
+updateText : String -> Model -> Model
+updateText newText m =
+    { m | currentText = newText }
 
 
-submitInput : Model -> Model
-submitInput m =
+submitText : Model -> Model
+submitText m =
     { m
-        | submittedText = m.input
-        , input = ""
+        | submittedText = m.currentText
+        , currentText = ""
     }
 
 
@@ -915,8 +921,8 @@ inputForm m =
             [ class "input-form-textfield"
             , type_ "text"
             , placeholder "Enter coordinates..."
-            , value m.input
-            , onInput InputChanged
+            , value m.currentText
+            , onInput TextChanged
             ]
             []
         , button
@@ -953,9 +959,9 @@ subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
         [ Browser.Events.onKeyDown
-            (Decode.map KeyDown (Decode.field "key" Decode.string))
+            (Decode.map KeyDown (Decode.field "code" Decode.string))
         , Browser.Events.onKeyUp
-            (Decode.map KeyUp (Decode.field "key" Decode.string))
+            (Decode.map KeyUp (Decode.field "code" Decode.string))
         , Browser.Events.onAnimationFrameDelta Tick
         , Browser.Events.onMouseDown
             (Decode.succeed MouseDown)
