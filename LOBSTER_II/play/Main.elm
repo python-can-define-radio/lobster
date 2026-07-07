@@ -31,10 +31,10 @@ type alias Model =
     , submittedText : String
     , isGatheringLobs : Bool
     , time : Float
-    , facing : Facing
+    , lastFacing : Facing
+    , keysDown : Set String
     , playerTextures : Maybe PlayerTextures
     , bushTexture : Maybe Texture
-    , keysDown : Set String
     }
 
 
@@ -132,10 +132,10 @@ initialModel =
     , submittedText = ""
     , isGatheringLobs = True
     , time = 0
-    , facing = FaceDown
+    , lastFacing = FaceDown
+    , keysDown = Set.empty
     , playerTextures = Nothing
     , bushTexture = Nothing
-    , keysDown = Set.empty
     }
 
 
@@ -419,7 +419,31 @@ computeNewPanCenter cdiff m =
 
 handleDown : String -> Model -> Model
 handleDown code m =
-    { m | keysDown = Set.insert code m.keysDown }
+    let
+        updatedKeys =
+            Set.insert code m.keysDown
+
+        newFacing =
+            case code of
+                "KeyW" ->
+                    FaceUp
+
+                "KeyS" ->
+                    FaceDown
+
+                "KeyA" ->
+                    FaceLeft
+
+                "KeyD" ->
+                    FaceRight
+
+                _ ->
+                    m.lastFacing
+    in
+    { m
+        | keysDown = updatedKeys
+        , lastFacing = newFacing
+    }
 
 
 handleUp : String -> Model -> Model
@@ -658,7 +682,7 @@ currentFacing m =
         FaceDown
 
     else
-        FaceDown
+        m.lastFacing
 
 
 currentWalkCycle : Facing -> PlayerTextures -> WalkCycle
