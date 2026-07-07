@@ -1,15 +1,13 @@
 module Main exposing (main)
 
-import Browser
+import Browser exposing (element)
 import Browser.Events
 import Canvas exposing (Renderable, Shape, lineTo, path, rect, shapes, clear)
 import Canvas.Settings exposing (fill, stroke)
 import Color
 import Canvas.Texture exposing (Texture)
 import Canvas
--- import Canvas.Settings exposing (..)
-import Canvas.Settings.Advanced exposing (transform, scale)
--- import Canvas.Settings.Text exposing (..)
+import Canvas.Settings.Advanced exposing (transform, scale, translate)
 import Canvas.Texture as Texture
 import Html exposing (Html, button, div, form, i, input, p, text)
 import Html.Attributes exposing (class, placeholder, type_, value)
@@ -32,14 +30,24 @@ type alias Model =
     , submittedText : String
     , isGatheringLobs : Bool
     , time : Float
-    , playerTextures : Maybe PlayerTextures 
+    , facing : Facing
+    , playerTextures : Maybe PlayerTextures
+    }
+
+
+type alias WalkCycle =
+    { frame0 : Texture
+    , frame1 : Texture
+    , frame2 : Texture
+    , frame3 : Texture
     }
 
 
 type alias PlayerTextures =
-    { standby : Texture
-    , lff : Texture
-    , rff : Texture
+    { down : WalkCycle
+    , up : WalkCycle
+    , left : WalkCycle
+    , right : WalkCycle
     }
 
 
@@ -65,6 +73,13 @@ type alias Azimuth =
     { sinresult : Float
     , cosresult : Float
     }
+
+
+type Facing
+    = FaceDown
+    | FaceUp
+    | FaceLeft
+    | FaceRight
 
 
 type alias Power =
@@ -117,12 +132,13 @@ initialModel =
     , submittedText = ""
     , isGatheringLobs = True
     , time = 0
+    , facing = FaceDown
     , playerTextures = Nothing
     }
 
 
 distperMs : Float
-distperMs = 0.2
+distperMs = 0.05
 
 
 canvW : number
@@ -240,7 +256,12 @@ update msg m =
             ( handleUp k m, Cmd.none )
 
         Tick dt ->
-            ( move dt m, lobNoise m )
+            ( move dt
+                { m
+                    | time = m.time + dt
+                }
+            , lobNoise m
+            )
 
         MouseDown ->
             ( { m | isMouseDown = True }, Cmd.none )
@@ -287,23 +308,60 @@ update msg m =
             )
 
 texturesFromAvSheet : Texture -> PlayerTextures
-texturesFromAvSheet avSheet = 
+texturesFromAvSheet avSheet =
     let
-        cell = 256
+        cell : Float
+        cell =
+            256
 
+        sprite : Int -> Int -> Texture
         sprite x y =
             Texture.sprite
-                { x = x * cell
-                , y = y * cell
+                { x = toFloat x * cell
+                , y = toFloat y * cell
                 , width = cell
                 , height = cell
                 }
                 avSheet
+
+        downCycle : WalkCycle
+        downCycle =
+            { frame0 = sprite 0 0
+            , frame1 = sprite 1 0
+            , frame2 = sprite 2 0
+            , frame3 = sprite 3 0
+            }
+
+        upCycle : WalkCycle
+        upCycle =
+            { frame0 = sprite 0 1
+            , frame1 = sprite 1 1
+            , frame2 = sprite 2 1
+            , frame3 = sprite 3 1
+            }
+
+        leftCycle : WalkCycle
+        leftCycle =
+            { frame0 = sprite 0 2
+            , frame1 = sprite 1 2
+            , frame2 = sprite 2 2
+            , frame3 = sprite 3 2
+            }
+
+        rightCycle : WalkCycle
+        rightCycle =
+            { frame0 = sprite 0 3
+            , frame1 = sprite 1 3
+            , frame2 = sprite 2 3
+            , frame3 = sprite 3 3
+            }
+
     in
-        { standby = sprite 1 3 
-        , lff = sprite 0 3 
-        , rff = sprite 2 3
-        }
+    { down = downCycle
+    , up = upCycle
+    , left = leftCycle
+    , right = rightCycle
+    }
 
 
 
@@ -354,20 +412,37 @@ handleUp k m =
             m
 
 
+isMoving : Model -> Bool
+isMoving m =
+    m.dirx /= 0 || m.diry /= 0
+
+
 handleDown : String -> Model -> Model
 handleDown k m =
     case String.toLower k of
         "w" ->
-            { m | diry = 10 }
+            { m
+                | diry = 1
+                , facing = FaceUp
+            }
 
         "s" ->
-            { m | diry = -1 }
+            { m
+                | diry = -1
+                , facing = FaceDown
+            }
 
         "a" ->
-            { m | dirx = -1 }
+            { m
+                | dirx = -1
+                , facing = FaceLeft
+            }
 
         "d" ->
-            { m | dirx = 1 }
+            { m
+                | dirx = 1
+                , facing = FaceRight
+            }
 
         _ ->
             m
@@ -408,7 +483,7 @@ tabletView m =
                 [ class "lobs-canvas" ]
                 (lobsScene m)
             , posText m
-            , tabletButtons m
+            , tabletButtons
             , clearLobsButton
             , gatherLobsButton m
             , recenterButton m
@@ -442,8 +517,7 @@ lifeScene m =
     lifeBckgrd
         ++ bushesView zoom center
         ++ transmitterView zoom center m.transmitter
-        ++ avatarView zoom center m.player
-        ++ playerRend m
+        ++ avatarRender zoom center m
 
 
 tabletScene : Model -> List Renderable
@@ -455,7 +529,7 @@ tabletScene m =
     tabletBckgrd
         ++ bushesView m.zoom center
         ++ transmitterView m.zoom center m.transmitter
-        ++ avatarView m.zoom center m.player
+        ++ avatarRender m.zoom center m
 
 
 lobsScene : Model -> List Renderable
@@ -524,50 +598,85 @@ transmitterView zoom center tx =
 
 
 
-playerRend : Model -> List Renderable
-playerRend m =
+avatarRender : Float -> WPoint -> Model -> List Renderable
+avatarRender zoom center m =
     case m.playerTextures of
-        Just avSheet ->
-            [ walkingAnimation m.time avSheet ]
+        Just playerTextures ->
+            [ walkingAnimation m.time zoom center m playerTextures ]
 
         Nothing ->
             []
 
 
-walkingAnimation : Float -> PlayerTextures -> Renderable
-walkingAnimation time playerTextures =
-            let
-                thirdsofsec : Int
-                thirdsofsec = time |> round |> remainderBy 1000
-
-                t : Texture
-                t =
-                    if thirdsofsec < 333 then
-                        playerTextures.rff
-
-                    else if thirdsofsec < 666 then
-                        playerTextures.standby
-
-                    else
-                        playerTextures.lff
-
-            in
-            zoomedTexture (0.5) 600 400 t
-
-
-zoomedTexture : Float -> Float -> Float -> Texture -> Renderable
-zoomedTexture zoom x y t =
-    Canvas.texture [ transform [ scale zoom zoom ] ] ( x, y ) t
-
-    
-avatarView : Float -> WPoint -> WPoint -> List Renderable
-avatarView zoom center player =
+walkingAnimation : Float -> Float -> WPoint -> Model -> PlayerTextures -> Renderable
+walkingAnimation time zoom center model playerTextures =
     let
-        size = 30 * zoom 
-        clsize = clamp 20 99999 size
+        cycle : WalkCycle
+        cycle =
+            currentWalkCycle model.facing playerTextures
+
+        frame : Int
+        frame =
+            if isMoving model then
+                (round time // 150) |> remainderBy 4
+
+            else
+                idleFrame model.facing
+
+        texture : Texture
+        texture =
+            frameTexture frame cycle
+
     in
-        [ shapes [ fill Color.blue ]
-                 [ oCZRect zoom center player clsize clsize ] ]
+    oCZTexture zoom center model.player 256 256 texture
+
+
+currentWalkCycle : Facing -> PlayerTextures -> WalkCycle
+currentWalkCycle facing playerTextures =
+    case facing of
+        FaceDown ->
+            playerTextures.down
+
+        FaceUp ->
+            playerTextures.up
+
+        FaceLeft ->
+            playerTextures.left
+
+        FaceRight ->
+            playerTextures.right
+
+
+idleFrame : Facing -> Int
+idleFrame facing =
+    case facing of
+        FaceDown ->
+            0
+
+        FaceUp ->
+            0
+
+        FaceLeft ->
+            1
+
+        FaceRight ->
+            1
+
+
+frameTexture : Int -> WalkCycle -> Texture
+frameTexture frame cycle =
+    case frame of
+        0 ->
+            cycle.frame0
+
+        1 ->
+            cycle.frame1
+
+        2 ->
+            cycle.frame2
+
+        _ ->
+            cycle.frame3
 
 
 lifeBckgrd : List Renderable
@@ -584,20 +693,20 @@ tabletBckgrd =
     ]
 
 
-tabletButtons : Model -> Html Msg
-tabletButtons m =
+tabletButtons : Html Msg
+tabletButtons =
     div [ class "tablet-buttons" ]
-        [ iconButton "fa-solid fa-object-group fa-2x"
+        [ mergeButton 
         , zoomInButton 
         , zoomOutButton
         , messageButton
         ]
 
         
-iconButton : String -> Html Msg
-iconButton iconName =
+mergeButton : Html Msg
+mergeButton =
     button [ Html.Attributes.title "Merge", class "game-btn" ]
-           [ i [ class iconName ] [] ]
+           [ i [ class "fa-solid fa-object-group fa-2x" ] [] ]
 
 
 gatherLobsButton : Model -> Html Msg
@@ -704,6 +813,28 @@ bushView zoom center bushLoc =
                [ oCZRect zoom center bushLoc size size ]
 
 
+-- offset centered zoomed image (texture)
+oCZTexture : Float -> WPoint -> WPoint -> Float -> Float -> Texture -> Renderable
+oCZTexture zoom center worldPos width height texture =
+    let
+        canvpoint : CPoint
+        canvpoint =
+            worldToCanvas zoom center worldPos
+
+        spriteScale : Float
+        spriteScale =
+            0.25
+    in
+    Canvas.texture
+        [ transform
+            [ translate canvpoint.cx canvpoint.cy
+            , scale spriteScale spriteScale
+            ]
+        ]
+        ( -width / 2, -height / 2 )
+        texture
+
+
 -- offset centered zoomed rectangle
 oCZRect : Float -> WPoint -> WPoint -> Float -> Float -> Shape
 oCZRect zoom center wp w h =
@@ -716,10 +847,6 @@ oCZRect zoom center wp w h =
     rect (xcentered, ycentered) w h
 
 
-drawLineRaw : CPoint -> CPoint -> Shape
-drawLineRaw start end =
-    path (start.cx, start.cy) [ lineTo (end.cx, end.cy) ]
-
 -- offset centered zoomed line
 oCZLine : Float -> WPoint -> WPoint -> WPoint -> Shape
 oCZLine zoom center begin end =
@@ -728,6 +855,11 @@ oCZLine zoom center begin end =
         canve = worldToCanvas zoom center end
     in
     drawLineRaw canvb canve
+
+
+drawLineRaw : CPoint -> CPoint -> Shape
+drawLineRaw start end =
+    path (start.cx, start.cy) [ lineTo (end.cx, end.cy) ]
 
 
 updateInput : String -> Model -> Model
@@ -813,7 +945,7 @@ decodeMouseMovement =
 
 main : Program () Model Msg
 main =
-    Browser.element
+    element
         { init = \_ -> ( initialModel, Cmd.none )
         , update = update
         , view = view
