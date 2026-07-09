@@ -34,7 +34,8 @@ type alias Model =
     , lastFacing : Facing
     , keysDown : Set String
     , playerTextures : Maybe PlayerTextures
-    , bushTexture : Maybe Texture
+    , bushTextures : BushTextures
+    , bushes : List Bush
     }
 
 
@@ -51,6 +52,23 @@ type alias PlayerTextures =
     , up : WalkCycle
     , left : WalkCycle
     , right : WalkCycle
+    }
+
+
+type BushKind
+    = Bush1
+    | Bush2
+
+
+type alias Bush =
+    { position : WPoint
+    , kind : BushKind
+    }
+
+
+type alias BushTextures =
+    { bush1 : Maybe Texture
+    , bush2 : Maybe Texture
     }
 
 
@@ -113,8 +131,10 @@ type Msg
     | Submit
     | ToggleGatherLobs
     | LobNoiseAvailable Float
+    | BushesGenerated (List Bush)
     | TextureAvSheetLoaded (Maybe Texture)
-    | TextureBushLoaded (Maybe Texture)
+    | TextureBush1Loaded (Maybe Texture)
+    | TextureBush2Loaded (Maybe Texture)
 
 
 initialModel : Model
@@ -135,7 +155,11 @@ initialModel =
     , lastFacing = FaceDown
     , keysDown = Set.empty
     , playerTextures = Nothing
-    , bushTexture = Nothing
+    , bushTextures =
+        { bush1 = Nothing
+        , bush2 = Nothing
+        }
+    , bushes = []
     }
 
 
@@ -154,8 +178,8 @@ canvH = 400
 textures : List (Texture.Source Msg)
 textures =
     [ Texture.loadFromImageUrl "../assets/avatar_sheet2.png" TextureAvSheetLoaded
-    , Texture.loadFromImageUrl "../assets/bush_1.png" TextureBushLoaded
-    , Texture.loadFromImageUrl "../assets/bush_2.png" TextureBushLoaded
+    , Texture.loadFromImageUrl "../assets/bush_1.png" TextureBush1Loaded
+    , Texture.loadFromImageUrl "../assets/bush_2.png" TextureBush2Loaded
     ]
     
 move : Float -> Model -> Model
@@ -323,12 +347,33 @@ update msg m =
             , Cmd.none
             )
         
-        TextureBushLoaded (Just texture) ->
-            ( { m | bushTexture = Just texture }
+        BushesGenerated bushes ->
+            ( { m | bushes = bushes }, Cmd.none )
+
+        TextureBush1Loaded (Just texture) ->
+            ( { m
+                | bushTextures =
+                    { bush1 = Just texture
+                    , bush2 = m.bushTextures.bush2
+                    }
+              }
             , Cmd.none
             )
-        
-        TextureBushLoaded Nothing ->
+
+        TextureBush1Loaded Nothing ->
+            ( m, Cmd.none )
+
+        TextureBush2Loaded (Just texture) ->
+            ( { m
+                | bushTextures =
+                    { bush1 = m.bushTextures.bush1
+                    , bush2 = Just texture
+                    }
+              }
+            , Cmd.none
+            )
+
+        TextureBush2Loaded Nothing ->
             ( m, Cmd.none )
 
 texturesFromAvSheet : Texture -> PlayerTextures
@@ -544,7 +589,7 @@ lifeScene m =
             1
     in
     lifeBckgrd
-        ++ bushesView m.bushTexture zoom center
+        ++ bushesView m.bushTextures m.bushes zoom center
         ++ transmitterView zoom center m.transmitter
         ++ avatarRender zoom center m
 
@@ -556,7 +601,7 @@ tabletScene m =
             cameraCenter m
     in
     tabletBckgrd
-        ++ bushesView m.bushTexture m.zoom center
+        ++ bushesView m.bushTextures m.bushes m.zoom center
         ++ transmitterView m.zoom center m.transmitter
         ++ avatarRender m.zoom center m
 
@@ -837,43 +882,73 @@ missionMessage :  Html Msg
 missionMessage =
     div [ class "mission-message" ]
         [ i [ class "fa-regular fa-user fa-3x"] []
-        , p [] [text "Mission Update :: Recover the lost signal beacon near the northern ridge." ] 
+        , p [] [text """Use your direction-finding equipment to locate the enemy transmitter.
+                
+                The adversary's scouts are watching in force. To avoid capture, stay south of the east/west road, which is grid $TODO ADD NORTHING VALUE} northing.
+                
+                Once you have determined the transmitter's grid location, send it to me using your tablet's submission form. Use either an 8 digit grid coordinate (within 10 meters) or a 10 digit grid coordinate (within 1 meter)""" ] 
         ]
 
 
-bushes : List WPoint
-bushes =
-    [ { x = 70200, y = 40300 }
-    , { x = 70400, y = 40150 }
-    , { x = 70000, y = 40000 }
-    , { x = 69900, y = 39900 }
-    , { x = 70100, y = 40100 }
-    , { x = 69900, y = 40100 }
-    , { x = 70100, y = 39900 }
-    ]
+bushGenerator : Random.Generator Bush
+bushGenerator =
+    Random.map3
+        (\x y kind ->
+            { position = { x = x, y = y }
+            , kind = kind
+            }
+        )
+        (Random.float 69000 71000)
+        (Random.float 39000 41000)
+        (Random.uniform Bush1 [ Bush2 ])
 
 
-bushesView : Maybe Texture -> Float -> WPoint -> List Renderable
-bushesView bushTexture zoom center =
-    List.map (bushView bushTexture zoom center) bushes
+bushesGenerator : Random.Generator (List Bush)
+bushesGenerator =
+    Random.list 100 bushGenerator
 
 
-bushView : Maybe Texture -> Float -> WPoint -> WPoint -> Renderable
-bushView bushTexture zoom center bushLoc =
+bushesView : BushTextures -> List Bush -> Float -> WPoint -> List Renderable
+bushesView bushTextures bushes zoom center =
+    List.map (bushView bushTextures zoom center) bushes
+
+
+bushView : BushTextures -> Float -> WPoint -> Bush -> Renderable
+bushView bushTextures zoom center bush =
     let
+        texture =
+            case bush.kind of
+                Bush1 ->
+                    bushTextures.bush1
+
+                Bush2 ->
+                    bushTextures.bush2
+
         size =
-            20 * zoom
+            20
     in
-    case bushTexture of
-        Just texture ->
-            oCZTexture {zoom = zoom, center = center, point = bushLoc} size size texture
+    case texture of
+        Just tex ->
+            oCZTexture
+                { zoom = zoom
+                , center = center
+                , point = bush.position
+                }
+                size
+                size
+                tex
 
         Nothing ->
             shapes [ fill Color.green ]
-                [ oCZRect zoom center bushLoc size size ]
+                [ oCZRect zoom center bush.position (size * zoom) (size * zoom) ]
 
 
 -- offset centered zoomed image (texture)
+avatarSpriteScale : Float -> Float
+avatarSpriteScale zoom =
+    max 0.15 (0.25 * zoom)
+
+
 oCZTexture : PosInfo -> Float -> Float -> Texture -> Renderable
 oCZTexture posInfo width height texture =
     let
@@ -883,7 +958,7 @@ oCZTexture posInfo width height texture =
 
         spriteScale : Float
         spriteScale =
-            0.25
+            avatarSpriteScale posInfo.zoom
     in
     Canvas.texture
         [ transform
@@ -1006,7 +1081,11 @@ decodeMouseMovement =
 main : Program () Model Msg
 main =
     element
-        { init = \_ -> ( initialModel, Cmd.none )
+        { init =
+            \_ ->
+                ( initialModel
+                , Random.generate BushesGenerated bushesGenerator
+                )
         , update = update
         , view = view
         , subscriptions = subscriptions

@@ -20,15 +20,9 @@ Next steps (overview) -- details for each below in same order
 #############################################################################
 Buttons
     Zooming:
-    - bushes and avatar don't zoom correctly. (wolverine)
-    - Also, reincorporate clamping on avatar size when zooming out. (wolverine)
     Submit button to check coordinates of transmitter (together)
     Merge button to merge canvasses (together)
     Message button: Mission message needs to be brought from Dart. (wolverine)
-
-#############################################################################
-Bush randomness
-    We would like to randomize both the position and the image (texture). (wolverine)
 
 #############################################################################
 Gridlines
