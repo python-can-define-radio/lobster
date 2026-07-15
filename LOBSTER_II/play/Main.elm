@@ -38,6 +38,8 @@ type alias Model =
     , bushTextures : BushTextures
     , bushes : List Bush
     , timeSinceLastLob : Float
+    , mergedView : Bool
+    , submissionPopupShown : Bool
     }
 
 
@@ -131,7 +133,9 @@ type Msg
     | ClearLobs
     | TextChanged String
     | Submit
+    | CloseSubmissionPopup
     | ToggleGatherLobs
+    | ToggleMerge
     | LobNoiseAvailable Float
     | BushesGenerated (List Bush)
     | TextureAvSheetLoaded (Maybe Texture)
@@ -163,6 +167,8 @@ initialModel =
         }
     , bushes = []
     , timeSinceLastLob = 0
+    , mergedView = False
+    , submissionPopupShown = False
     }
 
 
@@ -336,6 +342,9 @@ update msg m =
         ToggleGatherLobs ->
             ( { m | isGatheringLobs = not m.isGatheringLobs }, Cmd.none )
 
+        ToggleMerge ->
+            ( { m | mergedView = not m.mergedView }, Cmd.none )
+
         LobNoiseAvailable noise ->
             ( { m
                 | lobs = makeLob noise m :: m.lobs
@@ -348,7 +357,17 @@ update msg m =
             ( updateText newText m, Cmd.none )
 
         Submit ->
-            ( submitText m, Cmd.none )
+            let
+                submittedModel : Model
+                submittedModel =
+                    submitText m
+            in
+            ( { submittedModel | submissionPopupShown = True }
+            , Cmd.none
+            )
+
+        CloseSubmissionPopup ->
+            ( { m | submissionPopupShown = False }, Cmd.none )
 
         TextureAvSheetLoaded Nothing ->
             ( m, Cmd.none )
@@ -540,13 +559,18 @@ view : Model -> Html Msg
 view m =
     div []
         [ div [ class "two-canvasses" ]
-            [ lifeView m
-            , tabletView m
-            ]
-        , div [] [ text <|
-            case m.submittedText of 
-                "" -> ""
-                _ -> "You submitted: " ++ m.submittedText ]
+            (canvasViews m)
+        ]
+
+
+canvasViews : Model -> List (Html Msg)
+canvasViews m =
+    if m.mergedView then
+        [ tabletView m ]
+
+    else
+        [ lifeView m
+        , tabletView m
         ]
 
         
@@ -582,6 +606,7 @@ tabletView m =
             , messagesOverlay m
             , lobPowerView m
             , inputForm m
+            , submissionPopup m
             ]
         ]
         
@@ -858,8 +883,12 @@ tabletButtons =
         
 mergeButton : Html Msg
 mergeButton =
-    button [ Html.Attributes.title "Merge", class "game-btn" ]
-           [ i [ class "fa-solid fa-object-group fa-2x" ] [] ]
+    button
+        [ Html.Attributes.title "Merge"
+        , class "game-btn"
+        , onClick ToggleMerge
+        ]
+        [ i [ class "fa-solid fa-object-group fa-2x" ] [] ]
 
 
 gatherLobsButton : Model -> Html Msg
@@ -1213,6 +1242,38 @@ viewLobPower : Lob -> Html Msg
 viewLobPower lob =
     div []
         [ text ("Power: " ++ format2dp lob.power.mW ++ " dB") ]
+
+
+submissionPopup : Model -> Html Msg
+submissionPopup m =
+    if m.submissionPopupShown then
+        submissionDialog m
+
+    else
+        div [ class "hidden" ] []
+
+
+submissionDialog : Model -> Html Msg
+submissionDialog m =
+    div
+        [ class "game-dialog" ]
+        [ p []
+            [ text ("You submitted: " ++ m.submittedText) ]
+        , submissionDialogButtons
+        ]
+
+
+submissionDialogButtons : Html Msg
+submissionDialogButtons =
+    div
+        [ Html.Attributes.id "game-dialog-buttons" ]
+        [ button
+            [ class "game-btn"
+            , onClick CloseSubmissionPopup
+            ]
+            [ text "OK" ]
+        ]
+
 
 
 subscriptions : Model -> Sub Msg

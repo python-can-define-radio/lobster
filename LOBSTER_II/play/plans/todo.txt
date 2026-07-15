@@ -17,13 +17,12 @@ Next steps (overview) -- details for each below in same order
 #############################################################################
 Buttons
     Submit button to check coordinates of transmitter (together)
-    Merge button to merge canvasses (together)
     Message button: (wolverine)
         - this needs the rest of the mission like the northing threshold coordinate
 
 #############################################################################
 Gridlines
-    Re-add them (together)
+    present but not accurate to the MGRS we are using, also movement should be accurate approx 7 sec/ 10 meters (together)
 
 #############################################################################
 Road
