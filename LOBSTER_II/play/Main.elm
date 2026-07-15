@@ -43,6 +43,7 @@ type alias Model =
     , timeSinceLastLob : Float
     , mergedView : Bool
     , submissionPopupShown : Bool
+    , selectedLob : Maybe Lob
     }
 
 
@@ -109,6 +110,8 @@ type Msg
     | CloseSubmissionPopup
     | ToggleGatherLobs
     | ToggleMerge
+    | SelectLob (Float, Float)
+    | CloseLobDialog
     | LobNoiseAvailable Float
     | BushesGenerated (List Bush)
     | TextureAvSheetLoaded (Maybe Texture)
@@ -142,6 +145,7 @@ initialModel =
     , timeSinceLastLob = 0
     , mergedView = False
     , submissionPopupShown = False
+    , selectedLob = Nothing
     }
 
 
@@ -267,13 +271,28 @@ update msg m =
             )
 
         MouseDown ->
-            ( { m | isMouseDown = True }, Cmd.none )
+            ( { m
+                | isMouseDown = True
+                , selectedLob = secondLob m.lobs
+              }
+            , Cmd.none
+            )
 
         MouseUp ->
             ( { m | isMouseDown = False }, Cmd.none )
 
         MouseMove (dx, dy) ->
             ( handleMouseMove {cdx = dx, cdy = dy} m, Cmd.none )
+
+        SelectLob mousePoint ->
+            ( { m | selectedLob = findSelectedLob m mousePoint }
+            , Cmd.none
+            )
+
+        CloseLobDialog ->
+            ( { m | selectedLob = Nothing }
+            , Cmd.none
+            )
 
         ToggleOverlay ->
             ( { m | overlayShown = not m.overlayShown }, Cmd.none )
@@ -364,6 +383,16 @@ lobNoise m =
 
     else
         Cmd.none
+
+
+secondLob : List Lob -> Maybe Lob
+secondLob lobs =
+    case lobs of
+        _ :: second :: _ ->
+            Just second
+
+        _ ->
+            Nothing
 
 
 handleMouseMove : CDiff -> Model -> Model
@@ -483,6 +512,7 @@ tabletView m =
             , lobPowerView m
             , inputForm m
             , submissionPopup m
+            , lobDialog m
             ]
         ]
         
@@ -978,14 +1008,130 @@ submissionDialog : Model -> Html Msg
 submissionDialog m =
     div
         [ class "game-dialog" ]
-        [ p []
-            [ text ("You submitted: " ++ m.submittedText) ]
-        , p []
-            [ text ("The Tx coordinates are: " ++ transmitterCoordinatesText m.transmitter) ]
-        , p []
-            [ text (submissionResultText m) ]
+        [ p [] [ text ("DEBUG: The Tx coordinates are: " ++ transmitterCoordinatesText m.transmitter) ]
+        , submissionResultText m
         , submissionDialogButtons
         ]
+
+
+lobDialog : Model -> Html Msg
+lobDialog m =
+    case m.selectedLob of
+        Just lob ->
+            div
+                [ class "lob-dialog" ]
+                [ p []
+                    [ text ("LOB source: "
+                        ++ String.fromInt (round lob.source.x)
+                        ++ ", "
+                        ++ String.fromInt (round lob.source.y)
+                      )
+                    ]
+                , p []
+                    [ text ("Power: "
+                        ++ format2dp lob.power.mW
+                        ++ " dB")
+                    ]
+                , lobDialogButtons
+                ]
+
+        Nothing ->
+            div [ class "hidden" ] []
+
+
+lobDialogButtons : Html Msg
+lobDialogButtons =
+    div
+        [ Html.Attributes.id "lob-dialog-buttons"
+        , class "lob-dialog-buttons"
+        ]
+        [ button
+            [ class "game-btn"
+            , onClick CloseLobDialog
+            ]
+            [ text "OK" ]
+        ]
+
+
+decodeCanvasClick : Decode.Decoder (Float, Float)
+decodeCanvasClick =
+    Decode.map2 Tuple.pair
+        (Decode.field "offsetX" Decode.float)
+        (Decode.field "offsetY" Decode.float)
+
+
+findSelectedLob : Model -> (Float, Float) -> Maybe Lob
+findSelectedLob m mouse =
+    let
+        center =
+            cameraCenter m
+
+        closest = m.lobs -- TEMPORARY: DONT HANDLE CLOSENESS
+            -- List.filter
+            --    (lobIsNearClick m.zoom center mouse)
+            --    m.lobs
+    in
+    List.head closest
+
+
+lobIsNearClick : Float -> WPoint -> (Float, Float) -> Lob -> Bool
+lobIsNearClick zoom center mouse lob =
+    let
+        endpoint =
+            lobEndpoint lob
+
+        startScreen =
+            screenPoint zoom center lob.source
+
+        endScreen =
+            screenPoint zoom center endpoint
+
+        distance =
+            distanceToSegment mouse startScreen endScreen
+    in
+    distance < 8
+
+
+screenPoint : Float -> WPoint -> WPoint -> WPoint
+screenPoint zoom center point =
+    { x = (point.x - center.x) * zoom + canvW / 2
+    , y = (point.y - center.y) * zoom + canvH / 2
+    }
+
+
+distanceToSegment : (Float, Float) -> WPoint -> WPoint -> Float
+distanceToSegment mouse start finish =
+    let
+        dx =
+            finish.x - start.x
+
+        dy =
+            finish.y - start.y
+
+        lengthSquared =
+            dx * dx + dy * dy
+
+        t =
+            if lengthSquared == 0 then
+                0
+
+            else
+                ((Tuple.first mouse - start.x) * dx
+                    + (Tuple.second mouse - start.y) * dy)
+                    / lengthSquared
+
+        clamped =
+            max 0 (min 1 t)
+
+        closestX =
+            start.x + clamped * dx
+
+        closestY =
+            start.y + clamped * dy
+    in
+    sqrt
+        ((Tuple.first mouse - closestX) ^ 2
+            + (Tuple.second mouse - closestY) ^ 2)
 
 
 submissionDialogButtons : Html Msg
@@ -1000,18 +1146,22 @@ submissionDialogButtons =
         ]
 
 
-submissionResultText : Model -> String
+submissionResultText : Model -> Html Msg
 submissionResultText m =
     case submittedCoordinate m of
         Just point ->
             if transmitterMatches point m.transmitter then
-                "Congratulations! You found the transmitter."
+                p [ class "col-green" ]
+                    [ text "Congratulations! You found the transmitter." ]
 
             else
-                "That position does not match the transmitter's location."
+                p [ class "col-red" ]
+                    [ text "That position does not match the transmitter's location." ]
 
         Nothing ->
-            "Please enter a valid 8- or 10-digit grid coordinate."
+                p [ class "col-red" ]
+                    [ text "Please enter a valid 8- or 10-digit grid coordinate." ]
+            
 
 
 submittedCoordinate : Model -> Maybe ( WPoint, GridPrecision )

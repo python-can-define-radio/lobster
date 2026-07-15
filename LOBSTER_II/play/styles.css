@@ -130,6 +130,10 @@ h1 {
     color: red;
 }
 
+.col-green {
+    color: green;
+}
+
 .game-btn:hover {
     background-color: #aaa;
     cursor: crosshair;
@@ -288,7 +292,29 @@ h1 {
     box-shadow: 0 0 30px #000 inset, 0 0 12px #000;
 }
 
-#game-dialog-buttons {
+.game-dialog-buttons {
+    display: flex;
+    justify-content: center;
+    margin-top: 12px;
+    padding-left: 50px;
+    padding-right: 50px;
+}
+
+.lob-dialog {
+    position: absolute;
+    left: 0%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    text-align: left;
+    background-color: #0a0f14;
+    color: lightblue;
+    border: 2px solid lightgrey;
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 0 30px #000 inset, 0 0 12px #000;
+}
+
+.lob-dialog-buttons {
     display: flex;
     justify-content: center;
     margin-top: 12px;

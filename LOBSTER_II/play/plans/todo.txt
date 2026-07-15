@@ -16,7 +16,7 @@ Next steps (overview) -- details for each below in same order
 #############################################################################
 #############################################################################
 Buttons
-    Submit button to check coordinates of transmitter (together)
+    Submit button to check coordinates of transmitter (further testing to determine accuracy) (together)
     Message button: (wolverine)
         - this needs the rest of the mission like the northing threshold coordinate
 
