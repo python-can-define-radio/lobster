@@ -2,7 +2,6 @@ Next steps (overview) -- details for each below in same order
 
 1 week
 - Buttons
-- Bush randomness
 - Gridlines
 - Road
 - LOBs
@@ -11,18 +10,16 @@ Next steps (overview) -- details for each below in same order
 1 month:
 - sound fx
 
-
-
 #############################################################################
 #############################################################################
 ##########                         1 week                          ##########
 #############################################################################
 #############################################################################
 Buttons
-    Zooming:
     Submit button to check coordinates of transmitter (together)
     Merge button to merge canvasses (together)
-    Message button: Mission message needs to be brought from Dart. (wolverine)
+    Message button: (wolverine)
+        - this needs the rest of the mission like the northing threshold coordinate
 
 #############################################################################
 Gridlines
@@ -69,11 +66,6 @@ Missions:
 #############################################################################
 LOBSTER II: CRABNETS (Counter Recon & Bearing Network Engagement Tactical System)
 LOBSTER III: Last Bearing
-
-
-
-
-Some message
 
 Co-authored-by: james-pcdr <james-pcdr@users.noreply.github.com>
 AI-Assisted-By: ChatGPT (GPT 5.5, OpenAI)

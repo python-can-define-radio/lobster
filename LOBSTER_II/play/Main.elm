@@ -4,6 +4,7 @@ import Browser exposing (element)
 import Browser.Events
 import Canvas exposing (Renderable, Shape, lineTo, path, rect, shapes, clear)
 import Canvas.Settings exposing (fill, stroke)
+import Canvas.Settings.Line exposing (lineWidth)
 import Color
 import Canvas.Texture exposing (Texture)
 import Canvas
@@ -36,6 +37,7 @@ type alias Model =
     , playerTextures : Maybe PlayerTextures
     , bushTextures : BushTextures
     , bushes : List Bush
+    , timeSinceLastLob : Float
     }
 
 
@@ -160,6 +162,7 @@ initialModel =
         , bush2 = Nothing
         }
     , bushes = []
+    , timeSinceLastLob = 0
     }
 
 
@@ -249,7 +252,10 @@ makeLob noise m =
 
 accumulateTime : Float -> Model -> Model
 accumulateTime dt m =
-    { m | time = m.time + dt }
+    { m
+        | time = m.time + dt
+        , timeSinceLastLob = m.timeSinceLastLob + dt
+    }
 
 
 cameraCenter : Model -> WPoint
@@ -331,7 +337,12 @@ update msg m =
             ( { m | isGatheringLobs = not m.isGatheringLobs }, Cmd.none )
 
         LobNoiseAvailable noise ->
-            ( { m | lobs = makeLob noise m :: m.lobs }, Cmd.none )
+            ( { m
+                | lobs = makeLob noise m :: m.lobs
+                , timeSinceLastLob = 0
+              }
+            , Cmd.none
+            )
 
         TextChanged newText ->
             ( updateText newText m, Cmd.none )
@@ -435,11 +446,18 @@ texturesFromAvSheet avSheet =
 
 
 
+lobIntervalMs : Float
+lobIntervalMs =
+    400
+
+
 lobNoise : Model -> Cmd Msg
 lobNoise m =
-    if m.isGatheringLobs
-    then Random.generate LobNoiseAvailable (Random.float -0.05 0.05)
-    else Cmd.none
+    if m.isGatheringLobs && m.timeSinceLastLob >= lobIntervalMs then
+        Random.generate LobNoiseAvailable (Random.float -0.05 0.05)
+
+    else
+        Cmd.none
 
 
 handleMouseMove : CDiff -> Model -> Model
@@ -601,6 +619,7 @@ tabletScene m =
             cameraCenter m
     in
     tabletBckgrd
+        ++ gridView m.zoom center
         ++ bushesView m.bushTextures m.bushes m.zoom center
         ++ transmitterView m.zoom center m.transmitter
         ++ avatarRender m.zoom center m
@@ -616,19 +635,54 @@ lobsScene m =
             :: lobsView m.zoom center m.lobs
 
 
-
-
-
 lobsView : Float -> WPoint -> List Lob -> List Renderable
 lobsView zoom center lobs =
-    let
-        drawOneLob : Lob -> Shape
-        drawOneLob lob =
-            oCZLine zoom center lob.source (lobEndpoint lob)
-    in
-    [ shapes [ stroke Color.orange ]
-        (List.map drawOneLob lobs)
-    ]
+    case lobs of
+        [] ->
+            []
+
+        newest :: older ->
+            olderLobsRenderable zoom center older
+                ++ [ newestLobRenderable zoom center newest ]
+
+
+newestLobRenderable : Float -> WPoint -> Lob -> Renderable
+newestLobRenderable zoom center lob =
+    shapes
+        [ stroke Color.red
+        , lineWidth 3
+        ]
+        [ drawLine
+            zoom
+            center
+            lob.source
+            (lobEndpoint lob)
+        ]
+
+
+olderLobsRenderable : Float -> WPoint -> List Lob -> List Renderable
+olderLobsRenderable zoom center lobs =
+    List.map
+        (olderLobRenderable zoom center)
+        lobs
+
+
+olderLobRenderable : Float -> WPoint -> Lob -> Renderable
+olderLobRenderable zoom center lob =
+    shapes
+        [ stroke Color.orange
+        , lineWidth 2
+        ]
+        [ olderLobShape zoom center lob ]
+
+
+olderLobShape : Float -> WPoint -> Lob -> Shape
+olderLobShape zoom center lob =
+    drawLine
+        zoom
+        center
+        lob.source
+        (lobEndpoint lob)
 
 
 lobLength : Float
@@ -906,6 +960,113 @@ bushGenerator =
 bushesGenerator : Random.Generator (List Bush)
 bushesGenerator =
     Random.list 100 bushGenerator
+
+
+gridView : Float -> WPoint -> List Renderable
+gridView zoom center =
+    let
+        spacing =
+            gridSpacing zoom
+
+        far =
+            spacing * 40
+
+        xStart =
+            snapToGrid spacing (center.x - far)
+
+        yStart =
+            snapToGrid spacing (center.y - far)
+
+        xEnd =
+            xStart + far * 2
+
+        yEnd =
+            yStart + far * 2
+    in
+    [ shapes
+        [ stroke (Color.rgba 0.8 0.8 0.8 0.5) ]
+        (gridVerticalLines zoom center spacing xStart xEnd yStart yEnd
+            ++ gridHorizontalLines zoom center spacing xStart xEnd yStart yEnd)
+    ]
+
+
+gridSpacing : Float -> Float
+gridSpacing zoom =
+    if zoom < 0.02 then
+        16000
+
+    else if zoom < 0.2 then
+        1600
+
+    else if zoom < 2 then
+        160
+
+    else
+        16
+
+
+snapToGrid : Float -> Float -> Float
+snapToGrid spacing value =
+    toFloat (floor (value / spacing)) * spacing
+
+
+gridVerticalLines :
+    Float
+    -> WPoint
+    -> Float
+    -> Float
+    -> Float
+    -> Float
+    -> Float
+    -> List Shape
+gridVerticalLines zoom center spacing x xEnd yStart yEnd =
+    if x > xEnd then
+        []
+
+    else
+        drawLine zoom center
+            { x = x, y = yStart }
+            { x = x, y = yEnd }
+            :: gridVerticalLines
+                zoom
+                center
+                spacing
+                (x + spacing)
+                xEnd
+                yStart
+                yEnd
+
+
+gridHorizontalLines :
+    Float
+    -> WPoint
+    -> Float
+    -> Float
+    -> Float
+    -> Float
+    -> Float
+    -> List Shape
+gridHorizontalLines zoom center spacing xStart xEnd y yEnd =
+    if y > yEnd then
+        []
+
+    else
+        drawLine zoom center
+            { x = xStart, y = y }
+            { x = xEnd, y = y }
+            :: gridHorizontalLines
+                zoom
+                center
+                spacing
+                xStart
+                xEnd
+                (y + spacing)
+                yEnd
+
+
+drawLine : Float -> WPoint -> WPoint -> WPoint -> Shape
+drawLine zoom center start finish =
+    oCZLine zoom center start finish
 
 
 bushesView : BushTextures -> List Bush -> Float -> WPoint -> List Renderable
