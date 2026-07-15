@@ -563,18 +563,32 @@ lobsScene m =
             cameraCenter m
     in
         ( clear ( 0, 0 ) (toFloat canvW) (toFloat canvH) )
-            :: lobsView m.zoom center m.lobs
+            :: lobsView m.zoom center m.lobs m.selectedLob
 
 
-lobsView : Float -> WPoint -> List Lob -> List Renderable
-lobsView zoom center lobs =
-    case lobs of
+lobsView : Float -> WPoint -> List Lob -> Maybe Lob -> List Renderable
+lobsView zoom center lobs selected =
+    let
+        unselected =
+            List.filter ((/=) selected) (List.map Just lobs)
+                |> List.filterMap identity
+
+        selectedRenderable =
+            case selected of
+                Just lob ->
+                    [ selectedLobRenderable zoom center lob ]
+
+                Nothing ->
+                    []
+    in
+    case unselected of
         [] ->
-            []
+            selectedRenderable
 
         newest :: older ->
             olderLobsRenderable zoom center older
                 ++ [ newestLobRenderable zoom center newest ]
+                ++ selectedRenderable
 
 
 newestLobRenderable : Float -> WPoint -> Lob -> Renderable
@@ -614,6 +628,20 @@ olderLobShape zoom center lob =
         center
         lob.source
         (lobEndpoint lob)
+
+
+selectedLobRenderable : Float -> WPoint -> Lob -> Renderable
+selectedLobRenderable zoom center lob =
+    shapes
+        [ stroke Color.blue
+        , lineWidth 4
+        ]
+        [ drawLine
+            zoom
+            center
+            lob.source
+            (lobEndpoint lob)
+        ]
 
 
 lobLength : Float

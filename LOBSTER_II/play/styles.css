@@ -302,7 +302,7 @@ h1 {
 
 .lob-dialog {
     position: absolute;
-    left: 0%;
+    left: 20%;
     top: 50%;
     transform: translate(-50%, -50%);
     text-align: left;
