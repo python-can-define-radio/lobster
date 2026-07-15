@@ -1,14 +1,14 @@
 module Main exposing (main)
+{-| This module is our direction finding game's main file-}
 
 import Browser exposing (element)
 import Browser.Events
-import Canvas exposing (Renderable, Shape, lineTo, path, rect, shapes, clear)
+import Canvas exposing (Renderable, Shape, shapes, clear)
 import Canvas.Settings exposing (fill, stroke)
 import Canvas.Settings.Line exposing (lineWidth)
 import Color
 import Canvas.Texture exposing (Texture)
 import Canvas
-import Canvas.Settings.Advanced exposing (transform, scale, translate)
 import Canvas.Texture as Texture
 import Html exposing (Html, button, div, form, i, input, p, text)
 import Html.Attributes exposing (class, placeholder, type_, value)
@@ -16,6 +16,9 @@ import Html.Events exposing (onClick, onInput, onSubmit)
 import Json.Decode as Decode
 import Random
 import Set exposing (Set)
+import Char
+
+import Supp exposing (drawLine, cRect, cTexture, transmitterCoordinatesText, movementVector, WPoint, lobIntervalMs, decodeMouseMovement, format2dp, snapToGrid, gridSpacing, texturesFromAvSheet, frameTexture, idleFrame, currentWalkCycle, PlayerTextures, WalkCycle, Facing(..), canvW, canvH, lifeBckgrd, tabletBckgrd)
 
 
 type alias Model =
@@ -43,22 +46,6 @@ type alias Model =
     }
 
 
-type alias WalkCycle =
-    { frame0 : Texture
-    , frame1 : Texture
-    , frame2 : Texture
-    , frame3 : Texture
-    }
-
-
-type alias PlayerTextures =
-    { down : WalkCycle
-    , up : WalkCycle
-    , left : WalkCycle
-    , right : WalkCycle
-    }
-
-
 type BushKind
     = Bush1
     | Bush2
@@ -76,16 +63,9 @@ type alias BushTextures =
     }
 
 
-type alias WPoint =
-    { x : Float
-    , y : Float
-    }
-
-
-type alias CPoint =
-    { cx : Float
-    , cy : Float
-    }
+type GridPrecision
+    = Grid8
+    | Grid10
 
 
 type alias CDiff =
@@ -98,13 +78,6 @@ type alias Azimuth =
     { sinresult : Float
     , cosresult : Float
     }
-
-
-type Facing
-    = FaceDown
-    | FaceUp
-    | FaceLeft
-    | FaceRight
 
 
 type alias Power =
@@ -149,7 +122,7 @@ initialModel =
     , dirx = 0
     , diry = 0
     , lobs = []
-    , transmitter = { x = 70220, y = 41000 }
+    , transmitter = { x = 70228, y = 41005 }
     , panCenter = Nothing
     , isMouseDown = False
     , overlayShown = False
@@ -176,14 +149,6 @@ distperMs : Float
 distperMs = 0.05
 
 
-canvW : number
-canvW = 600
-
-
-canvH : number
-canvH = 400
-
-
 textures : List (Texture.Source Msg)
 textures =
     [ Texture.loadFromImageUrl "../assets/avatar_sheet2.png" TextureAvSheetLoaded
@@ -195,7 +160,7 @@ move : Float -> Model -> Model
 move dt m =
     let
         movement =
-            movementVector m
+            movementVector m.keysDown
 
         speed =
             if isRunning m then
@@ -274,20 +239,6 @@ cameraCenter m =
             m.player
 
 
-type alias PosInfo =
-    { zoom : Float
-    , center : WPoint
-    , point : WPoint
-    }
-
-
-worldToCanvas : PosInfo -> CPoint
-worldToCanvas {zoom, center, point} =
-    { cx = zoom * (point.x - center.x) + canvW / 2
-    , cy = zoom * (center.y - point.y) + canvH / 2
-    }
-
-
 posText : Model -> Html Msg
 posText m =
     div [ class "player-pos" ]
@@ -354,15 +305,14 @@ update msg m =
             )
 
         TextChanged newText ->
-            ( updateText newText m, Cmd.none )
+            ( { m | currentText = newText }, Cmd.none )
 
         Submit ->
-            let
-                submittedModel : Model
-                submittedModel =
-                    submitText m
-            in
-            ( { submittedModel | submissionPopupShown = True }
+            ( { m
+                | submittedText = m.currentText
+                , currentText = ""
+                , submissionPopupShown = True
+                }
             , Cmd.none
             )
 
@@ -405,69 +355,6 @@ update msg m =
 
         TextureBush2Loaded Nothing ->
             ( m, Cmd.none )
-
-texturesFromAvSheet : Texture -> PlayerTextures
-texturesFromAvSheet avSheet =
-    let
-        cell : Float
-        cell =
-            256
-
-        sprite : Int -> Int -> Texture
-        sprite x y =
-            Texture.sprite
-                { x = toFloat x * cell
-                , y = toFloat y * cell
-                , width = cell
-                , height = cell
-                }
-                avSheet
-
-        downCycle : WalkCycle
-        downCycle =
-            { frame0 = sprite 0 0
-            , frame1 = sprite 1 0
-            , frame2 = sprite 2 0
-            , frame3 = sprite 3 0
-            }
-
-        upCycle : WalkCycle
-        upCycle =
-            { frame0 = sprite 0 1
-            , frame1 = sprite 1 1
-            , frame2 = sprite 2 1
-            , frame3 = sprite 3 1
-            }
-
-        leftCycle : WalkCycle
-        leftCycle =
-            { frame0 = sprite 0 2
-            , frame1 = sprite 1 2
-            , frame2 = sprite 2 2
-            , frame3 = sprite 3 2
-            }
-
-        rightCycle : WalkCycle
-        rightCycle =
-            { frame0 = sprite 0 3
-            , frame1 = sprite 1 3
-            , frame2 = sprite 2 3
-            , frame3 = sprite 3 3
-            }
-
-    in
-    { down = downCycle
-    , up = upCycle
-    , left = leftCycle
-    , right = rightCycle
-    }
-
-
-
-
-lobIntervalMs : Float
-lobIntervalMs =
-    400
 
 
 lobNoise : Model -> Cmd Msg
@@ -535,18 +422,7 @@ handleUp code m =
 
 isMoving : Model -> Bool
 isMoving m =
-    movementVector m /= { x = 0, y = 0 }
-
-
-movementVector : Model -> WPoint
-movementVector m =
-    { x =
-        (if Set.member "KeyD" m.keysDown then 1 else 0)
-        - (if Set.member "KeyA" m.keysDown then 1 else 0)
-    , y =
-        (if Set.member "KeyW" m.keysDown then 1 else 0)
-        - (if Set.member "KeyS" m.keysDown then 1 else 0)
-    }
+    (movementVector m.keysDown) /= { x = 0, y = 0 }
 
 
 isRunning : Model -> Bool
@@ -740,13 +616,16 @@ azimuthFromPositions receiver transmitter =
 
 
 transmitterView : Float -> WPoint -> WPoint -> List Renderable
-transmitterView zoom center tx =
-    let
-        size =
-            20 * zoom
-    in
+transmitterView zoom center p =
+    let 
+        posInfo =
+            { zoom = zoom
+            , center = center
+            , point = p
+            }
+    in 
     [ shapes [ fill Color.red ]
-        [ oCZRect zoom center tx size size ]
+        [ cRect posInfo 20 20 ]
     ]
 
 
@@ -784,14 +663,14 @@ walkingAnimation zoom center m playerTextures =
             frameTexture frame cycle
 
     in
-    oCZTexture {zoom = zoom, center = center, point = m.player} 256 256 texture
+    cTexture {zoom = zoom, center = center, point = m.player} 256 256 texture
 
 
 currentFacing : Model -> Facing
 currentFacing m =
     let
         moving =
-            movementVector m
+            movementVector m.keysDown
     in
     if moving.x > 0 then
         FaceRight
@@ -807,68 +686,6 @@ currentFacing m =
 
     else
         m.lastFacing
-
-
-currentWalkCycle : Facing -> PlayerTextures -> WalkCycle
-currentWalkCycle facing playerTextures =
-    case facing of
-        FaceDown ->
-            playerTextures.down
-
-        FaceUp ->
-            playerTextures.up
-
-        FaceLeft ->
-            playerTextures.left
-
-        FaceRight ->
-            playerTextures.right
-
-
-idleFrame : Facing -> Int
-idleFrame facing =
-    case facing of
-        FaceDown ->
-            0
-
-        FaceUp ->
-            0
-
-        FaceLeft ->
-            1
-
-        FaceRight ->
-            1
-
-
-frameTexture : Int -> WalkCycle -> Texture
-frameTexture frame cycle =
-    case frame of
-        0 ->
-            cycle.frame0
-
-        1 ->
-            cycle.frame1
-
-        2 ->
-            cycle.frame2
-
-        _ ->
-            cycle.frame3
-
-
-lifeBckgrd : List Renderable
-lifeBckgrd =
-    [ shapes [ fill (Color.rgb 0.8 1 0.8) ]
-        [ rect (0, 0) (toFloat canvW) (toFloat canvH) ]
-    ]
-
-
-tabletBckgrd : List Renderable
-tabletBckgrd =
-    [ shapes [ fill (Color.rgb 0.1 0.1 0.1) ]
-        [ rect (0, 0) (toFloat canvW) (toFloat canvH) ]
-    ]
 
 
 tabletButtons : Html Msg
@@ -1019,26 +836,6 @@ gridView zoom center =
     ]
 
 
-gridSpacing : Float -> Float
-gridSpacing zoom =
-    if zoom < 0.02 then
-        16000
-
-    else if zoom < 0.2 then
-        1600
-
-    else if zoom < 2 then
-        160
-
-    else
-        16
-
-
-snapToGrid : Float -> Float -> Float
-snapToGrid spacing value =
-    toFloat (floor (value / spacing)) * spacing
-
-
 gridVerticalLines :
     Float
     -> WPoint
@@ -1093,10 +890,6 @@ gridHorizontalLines zoom center spacing xStart xEnd y yEnd =
                 yEnd
 
 
-drawLine : Float -> WPoint -> WPoint -> WPoint -> Shape
-drawLine zoom center start finish =
-    oCZLine zoom center start finish
-
 
 bushesView : BushTextures -> List Bush -> Float -> WPoint -> List Renderable
 bushesView bushTextures bushes zoom center =
@@ -1106,7 +899,7 @@ bushesView bushTextures bushes zoom center =
 bushView : BushTextures -> Float -> WPoint -> Bush -> Renderable
 bushView bushTextures zoom center bush =
     let
-        texture =
+        tex =
             case bush.kind of
                 Bush1 ->
                     bushTextures.bush1
@@ -1116,88 +909,21 @@ bushView bushTextures zoom center bush =
 
         size =
             20
+        
+        posInfo = 
+            { zoom = zoom
+            , center = center
+            , point = bush.position
+            }
+
     in
-    case texture of
-        Just tex ->
-            oCZTexture
-                { zoom = zoom
-                , center = center
-                , point = bush.position
-                }
-                size
-                size
-                tex
+    case tex of
+        Just t ->
+            cTexture posInfo size size t
 
         Nothing ->
             shapes [ fill Color.green ]
-                [ oCZRect zoom center bush.position (size * zoom) (size * zoom) ]
-
-
--- offset centered zoomed image (texture)
-avatarSpriteScale : Float -> Float
-avatarSpriteScale zoom =
-    max 0.15 (0.25 * zoom)
-
-
-oCZTexture : PosInfo -> Float -> Float -> Texture -> Renderable
-oCZTexture posInfo width height texture =
-    let
-        canvpoint : CPoint
-        canvpoint =
-            worldToCanvas posInfo
-
-        spriteScale : Float
-        spriteScale =
-            avatarSpriteScale posInfo.zoom
-    in
-    Canvas.texture
-        [ transform
-            [ translate canvpoint.cx canvpoint.cy
-            , scale spriteScale spriteScale
-            ]
-        ]
-        ( -width / 2, -height / 2 )
-        texture
-
-
--- offset centered zoomed rectangle
-oCZRect : Float -> WPoint -> WPoint -> Float -> Float -> Shape
-oCZRect zoom center wp w h =
-    let
-        canvpoint : CPoint
-        canvpoint = worldToCanvas {zoom = zoom, center = center, point = wp}
-        xcentered = canvpoint.cx - w/2
-        ycentered = canvpoint.cy - h/2
-    in
-    rect (xcentered, ycentered) w h
-
-
--- offset centered zoomed line
-oCZLine : Float -> WPoint -> WPoint -> WPoint -> Shape
-oCZLine zoom center begin end =
-    let
-        canvb = worldToCanvas { zoom = zoom, center = center, point = begin}
-        canve = worldToCanvas { zoom = zoom, center = center, point = end}
-    in
-    drawLineRaw canvb canve
-
-
-drawLineRaw : CPoint -> CPoint -> Shape
-drawLineRaw start end =
-    path (start.cx, start.cy) [ lineTo (end.cx, end.cy) ]
-
-
-updateText : String -> Model -> Model
-updateText newText m =
-    { m | currentText = newText }
-
-
-submitText : Model -> Model
-submitText m =
-    { m
-        | submittedText = m.currentText
-        , currentText = ""
-    }
+                [ cRect posInfo size size ]
 
 
 inputForm : Model -> Html Msg
@@ -1233,11 +959,6 @@ lobPowerView m =
                 text "Power: ___ dB" ]
 
 
-format2dp : Float -> String
-format2dp value =
-    String.fromFloat (toFloat (round (value * 100)) / 100)
-
-
 viewLobPower : Lob -> Html Msg
 viewLobPower lob =
     div []
@@ -1259,6 +980,10 @@ submissionDialog m =
         [ class "game-dialog" ]
         [ p []
             [ text ("You submitted: " ++ m.submittedText) ]
+        , p []
+            [ text ("The Tx coordinates are: " ++ transmitterCoordinatesText m.transmitter) ]
+        , p []
+            [ text (submissionResultText m) ]
         , submissionDialogButtons
         ]
 
@@ -1273,6 +998,94 @@ submissionDialogButtons =
             ]
             [ text "OK" ]
         ]
+
+
+submissionResultText : Model -> String
+submissionResultText m =
+    case submittedCoordinate m of
+        Just point ->
+            if transmitterMatches point m.transmitter then
+                "Congratulations! You found the transmitter."
+
+            else
+                "That position does not match the transmitter's location."
+
+        Nothing ->
+            "Please enter a valid 8- or 10-digit grid coordinate."
+
+
+submittedCoordinate : Model -> Maybe ( WPoint, GridPrecision )
+submittedCoordinate m =
+    parseGridCoordinate m.submittedText
+
+
+parseGridCoordinate : String -> Maybe ( WPoint, GridPrecision )
+parseGridCoordinate text =
+    let
+        digits =
+            String.filter Char.isDigit text
+    in
+    case String.length digits of
+        8 ->
+            case parseCoordinateParts8
+                (String.left 4 digits)
+                (String.dropLeft 4 digits) of
+                Just point ->
+                    Just ( point, Grid8 )
+
+                Nothing ->
+                    Nothing
+
+        10 ->
+            case parseCoordinateParts10
+                (String.left 5 digits)
+                (String.dropLeft 5 digits) of
+                Just point ->
+                    Just ( point, Grid10 )
+
+                Nothing ->
+                    Nothing
+
+        _ ->
+            Nothing
+
+
+parseCoordinateParts8 : String -> String -> Maybe WPoint
+parseCoordinateParts8 east north =
+    case ( String.toFloat east, String.toFloat north ) of
+        ( Just e, Just n ) ->
+            Just
+                { x = e * 10
+                , y = n * 10
+                }
+
+        _ ->
+            Nothing
+
+
+parseCoordinateParts10 : String -> String -> Maybe WPoint
+parseCoordinateParts10 east north =
+    case ( String.toFloat east, String.toFloat north ) of
+        ( Just e, Just n ) ->
+            Just
+                { x = e
+                , y = n
+                }
+
+        _ ->
+            Nothing
+
+
+transmitterMatches : ( WPoint, GridPrecision ) -> WPoint -> Bool
+transmitterMatches ( submitted, precision ) transmitter =
+    case precision of
+        Grid10 ->
+            submitted.x == transmitter.x
+                && submitted.y == transmitter.y
+
+        Grid8 ->
+            abs (submitted.x - transmitter.x) <= 10
+                && abs (submitted.y - transmitter.y) <= 10
 
 
 
@@ -1291,13 +1104,6 @@ subscriptions _ =
         , Browser.Events.onMouseUp
             (Decode.succeed MouseUp)
         ]
-
-
-decodeMouseMovement : Decode.Decoder (Float, Float)
-decodeMouseMovement =
-    Decode.map2 Tuple.pair
-        (Decode.field "movementX" Decode.float)
-        (Decode.field "movementY" Decode.float)
 
 
 main : Program () Model Msg

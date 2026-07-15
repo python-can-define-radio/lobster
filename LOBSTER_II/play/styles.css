@@ -290,8 +290,7 @@ h1 {
 
 #game-dialog-buttons {
     display: flex;
-    justify-content: space-between;
-    gap: 10px;
+    justify-content: center;
     margin-top: 12px;
     padding-left: 50px;
     padding-right: 50px;
