@@ -34,6 +34,12 @@ type alias WPoint =
     }
 
 
+type alias Azimuth =
+    { sinresult : Float
+    , cosresult : Float
+    }
+
+
 type alias PlayerTextures =
     { down : WalkCycle
     , up : WalkCycle
@@ -305,3 +311,36 @@ drawLine zoom center begin end =
         canve = worldToCanvas { zoom = zoom, center = center, point = end}
     in
     drawLineRaw canvb canve
+
+
+degToRad : Float -> Float
+degToRad x = x * 180 / pi 
+
+azToDeg : Azimuth -> String
+azToDeg azimuth =
+    let
+        angle = degToRad <| atan2 azimuth.sinresult azimuth.cosresult
+        northZero = 90 - angle
+        positiveOnly = 
+            if northZero < 0
+            then northZero + 360
+            else northZero
+    in
+    format2dp positiveOnly
+
+
+azimuthFromPositions : WPoint -> WPoint -> Azimuth
+azimuthFromPositions receiver transmitter =
+    let
+        xd =
+            transmitter.x - receiver.x
+
+        yd =
+            transmitter.y - receiver.y
+
+        dist =
+            sqrt (xd * xd + yd * yd)
+    in
+    { sinresult = yd / dist
+    , cosresult = xd / dist
+    }

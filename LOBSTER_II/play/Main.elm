@@ -18,7 +18,7 @@ import Random
 import Set exposing (Set)
 import Char
 
-import Supp exposing (drawLine, cRect, cTexture, transmitterCoordinatesText, movementVector, WPoint, lobIntervalMs, decodeMouseMovement, format2dp, snapToGrid, gridSpacing, texturesFromAvSheet, frameTexture, idleFrame, currentWalkCycle, PlayerTextures, WalkCycle, Facing(..), canvW, canvH, lifeBckgrd, tabletBckgrd)
+import Supp exposing (azimuthFromPositions, azToDeg, Azimuth, drawLine, cRect, cTexture, transmitterCoordinatesText, movementVector, WPoint, lobIntervalMs, decodeMouseMovement, format2dp, snapToGrid, gridSpacing, texturesFromAvSheet, frameTexture, idleFrame, currentWalkCycle, PlayerTextures, WalkCycle, Facing(..), canvW, canvH, lifeBckgrd, tabletBckgrd)
 
 
 type alias Model =
@@ -72,12 +72,6 @@ type GridPrecision
 type alias CDiff =
     { cdx : Float
     , cdy : Float
-    }
-
-
-type alias Azimuth =
-    { sinresult : Float
-    , cosresult : Float
     }
 
 
@@ -656,23 +650,6 @@ lobEndpoint lob =
     }
 
 
-azimuthFromPositions : WPoint -> WPoint -> Azimuth
-azimuthFromPositions receiver transmitter =
-    let
-        xd =
-            transmitter.x - receiver.x
-
-        yd =
-            transmitter.y - receiver.y
-
-        dist =
-            sqrt (xd * xd + yd * yd)
-    in
-    { sinresult = yd / dist
-    , cosresult = xd / dist
-    }
-
-
 transmitterView : Float -> WPoint -> WPoint -> List Renderable
 transmitterView zoom center p =
     let 
@@ -1054,6 +1031,11 @@ lobDialog m =
                         ++ ", "
                         ++ String.fromInt (round lob.source.y)
                       )
+                    ]
+                , p []
+                    [ text ("Azimuth: "
+                        ++ azToDeg lob.azimuth
+                        ++ "°")
                     ]
                 , p []
                     [ text ("Power: "
