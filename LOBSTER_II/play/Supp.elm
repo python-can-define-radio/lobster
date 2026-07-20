@@ -3,9 +3,9 @@
 module Supp exposing (..)
 {-| This module is our direction finding game's Supp file.-}
 
-import Canvas exposing (Renderable, Shape, lineTo, path, rect, shapes, clear)
+import Canvas exposing (Renderable, Shape, lineTo, path, rect, shapes)
 import Color
-import Canvas.Settings exposing (fill, stroke)
+import Canvas.Settings exposing (fill)
 import Canvas.Settings.Advanced exposing (transform, scale, translate)
 import Canvas.Texture exposing (Texture)
 import Canvas.Texture as Texture
@@ -33,6 +33,10 @@ type alias WPoint =
     , y : Float
     }
 
+type alias MoveVec = 
+    { xdir: Float
+    , ydir: Float
+    }
 
 type alias Azimuth =
     { sinresult : Float
@@ -237,15 +241,19 @@ lobIntervalMs =
     400
 
 
-movementVector : Set String -> WPoint
+movementVector : Set String -> MoveVec
 movementVector keysDown =
-    { x =
-        (if Set.member "KeyD" keysDown then 1 else 0)
-        - (if Set.member "KeyA" keysDown then 1 else 0)
-    , y =
-        (if Set.member "KeyW" keysDown then 1 else 0)
-        - (if Set.member "KeyS" keysDown then 1 else 0)
-    }
+    let
+        oneIfDown x = if (Set.member x keysDown) then 1 else 0
+    in
+        { xdir = oneIfDown "KeyD" - oneIfDown "KeyA"
+        , ydir = oneIfDown "KeyW" - oneIfDown "KeyS"
+        }
+
+
+isMoving : Set String -> Bool
+isMoving keysDown =
+    (movementVector keysDown) /= { xdir = 0, ydir = 0 }
 
 
 transmitterCoordinatesText : WPoint -> String
@@ -271,24 +279,30 @@ worldToCanvas {zoom, center, point} =
 
 {-| custom image (texture). See docstring on PosInfo. -}
 cTexture : PosInfo -> Float -> Float -> Texture -> Renderable
-cTexture posInfo width height texture =
+cTexture posInfo imgScale minSize tex =
     let
         canvpoint : CPoint
         canvpoint =
             worldToCanvas posInfo
 
-        spriteScale : Float
-        spriteScale =
-            avatarSpriteScale posInfo.zoom
+        z : Float
+        z = clamp minSize 99999 <| posInfo.zoom * imgScale
+
+        dims = Texture.dimensions tex
+        halfw = dims.width * z / 2
+        halfh = dims.height * z / 2
+        xcent = canvpoint.cx - halfw
+        ycent = canvpoint.cy - halfh
+
     in
     Canvas.texture
         [ transform
-            [ translate canvpoint.cx canvpoint.cy
-            , scale spriteScale spriteScale
+            [ translate xcent ycent
+            , scale z z
             ]
         ]
-        ( -width / 2, -height / 2 )
-        texture
+        (0, 0) -- the x, y is in the `translate`
+        tex
 
 
 {-| custom rectangle. See docstring on PosInfo. -}
@@ -344,3 +358,44 @@ azimuthFromPositions receiver transmitter =
     { sinresult = yd / dist
     , cosresult = xd / dist
     }
+
+currentFacing : Set String -> Facing -> Facing
+currentFacing keysDown lastFacing =
+    let
+        moving =
+            movementVector keysDown
+    in
+    if moving.xdir > 0 then
+        FaceRight
+
+    else if moving.xdir < 0 then
+        FaceLeft
+
+    else if moving.ydir > 0 then
+        FaceUp
+
+    else if moving.ydir < 0 then
+        FaceDown
+
+    else
+        lastFacing
+
+
+keepNonNothing : List (Maybe a) -> List a
+keepNonNothing lst =
+    let 
+        keepIfGood : Maybe a -> List (Maybe a) -> List a
+        keepIfGood x xs =
+            case x of
+                Nothing ->
+                    keepNonNothing xs
+                
+                Just item ->
+                    item :: keepNonNothing xs
+    in
+        case lst of
+            [] ->
+                []
+
+            (x :: xs) ->
+                keepIfGood x xs

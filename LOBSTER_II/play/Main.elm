@@ -1,5 +1,5 @@
 module Main exposing (main)
-{-| This module is our direction finding game's main file-}
+{-| This module is LOBSTER's (our direction finding game) main file-}
 
 import Browser exposing (element)
 import Browser.Events
@@ -18,7 +18,7 @@ import Random
 import Set exposing (Set)
 import Char
 
-import Supp exposing (azimuthFromPositions, azToDeg, Azimuth, drawLine, cRect, cTexture, transmitterCoordinatesText, movementVector, WPoint, lobIntervalMs, decodeMouseMovement, format2dp, snapToGrid, gridSpacing, texturesFromAvSheet, frameTexture, idleFrame, currentWalkCycle, PlayerTextures, WalkCycle, Facing(..), canvW, canvH, lifeBckgrd, tabletBckgrd)
+import Supp exposing (keepNonNothing, currentFacing, isMoving, azimuthFromPositions, azToDeg, Azimuth, drawLine, cRect, cTexture, transmitterCoordinatesText, movementVector, WPoint, lobIntervalMs, decodeMouseMovement, format2dp, snapToGrid, gridSpacing, texturesFromAvSheet, frameTexture, idleFrame, currentWalkCycle, PlayerTextures, WalkCycle, Facing(..), canvW, canvH, lifeBckgrd, tabletBckgrd)
 
 
 type alias Model =
@@ -168,16 +168,16 @@ move dt m =
     in
     { m
         | player =
-            { x = m.player.x + movement.x * speed * dt
-            , y = m.player.y + movement.y * speed * dt
+            { x = m.player.x + movement.xdir * speed * dt
+            , y = m.player.y + movement.ydir * speed * dt
             }
     }
 
-makeLob : Float -> Model -> Lob
-makeLob noise m =
+makeLob : Float -> WPoint -> WPoint -> Lob
+makeLob noise player transmitter =
     let
         base =
-            azimuthFromPositions m.player m.transmitter
+            azimuthFromPositions player transmitter
 
         cosA =
             cos noise
@@ -193,10 +193,10 @@ makeLob noise m =
             }
 
         dx =
-            m.player.x - m.transmitter.x
+            player.x - transmitter.x
 
         dy =
-            m.player.y - m.transmitter.y
+            player.y - transmitter.y
 
         dist =
             sqrt (dx * dx + dy * dy)
@@ -213,7 +213,7 @@ makeLob noise m =
             else
                 10 * logBase 10 powerLinear
     in
-    { source = m.player
+    { source = player
     , azimuth = rotated
     , power = { mW = power }
     }
@@ -311,7 +311,9 @@ update msg m =
 
         LobNoiseAvailable noise ->
             ( { m
-                | lobs = makeLob noise m :: m.lobs
+                | lobs = 
+                    makeLob noise m.player m.transmitter
+                    :: m.lobs
                 , timeSinceLastLob = 0
               }
             , Cmd.none
@@ -441,11 +443,6 @@ handleDown code m =
 handleUp : String -> Model -> Model
 handleUp code m =
     { m | keysDown = Set.remove code m.keysDown }
-
-
-isMoving : Model -> Bool
-isMoving m =
-    (movementVector m.keysDown) /= { x = 0, y = 0 }
 
 
 isRunning : Model -> Bool
@@ -679,7 +676,7 @@ walkingAnimation : Float -> WPoint -> Model -> PlayerTextures -> Renderable
 walkingAnimation zoom center m playerTextures =
     let
         facing =
-            currentFacing m
+            currentFacing m.keysDown m.lastFacing
 
         cycle : WalkCycle
         cycle =
@@ -687,40 +684,19 @@ walkingAnimation zoom center m playerTextures =
 
         frame : Int
         frame =
-            if isMoving m then
+            if isMoving m.keysDown then
                 (round m.time // 150) |> remainderBy 4
 
             else
-                idleFrame (currentFacing m)
+                idleFrame <| currentFacing m.keysDown m.lastFacing
 
         texture : Texture
         texture =
             frameTexture frame cycle
 
     in
-    cTexture {zoom = zoom, center = center, point = m.player} 256 256 texture
+    cTexture {zoom = zoom, center = center, point = m.player} 0.2 0.1 texture
 
-
-currentFacing : Model -> Facing
-currentFacing m =
-    let
-        moving =
-            movementVector m.keysDown
-    in
-    if moving.x > 0 then
-        FaceRight
-
-    else if moving.x < 0 then
-        FaceLeft
-
-    else if moving.y > 0 then
-        FaceUp
-
-    else if moving.y < 0 then
-        FaceDown
-
-    else
-        m.lastFacing
 
 
 tabletButtons : Html Msg
@@ -825,16 +801,19 @@ missionMessage =
         ]
 
 
-bushGenerator : Random.Generator Bush
-bushGenerator =
-    Random.map3
-        (\x y kind ->
-            { position = { x = x, y = y }
-            , kind = kind
-            }
-        )
+pointGen : Random.Generator WPoint
+pointGen =
+    Random.map2
+        WPoint 
         (Random.float 69000 71000)
         (Random.float 39000 41000)
+
+
+bushGenerator : Random.Generator Bush
+bushGenerator =
+    Random.map2
+        Bush
+        pointGen
         (Random.uniform Bush1 [ Bush2 ])
 
 
@@ -925,13 +904,14 @@ gridHorizontalLines zoom center spacing xStart xEnd y yEnd =
                 yEnd
 
 
-
 bushesView : BushTextures -> List Bush -> Float -> WPoint -> List Renderable
 bushesView bushTextures bushes zoom center =
-    List.map (bushView bushTextures zoom center) bushes
+    bushes
+        |> List.map (bushView bushTextures zoom center)
+        |> keepNonNothing
 
 
-bushView : BushTextures -> Float -> WPoint -> Bush -> Renderable
+bushView : BushTextures -> Float -> WPoint -> Bush -> Maybe Renderable
 bushView bushTextures zoom center bush =
     let
         tex =
@@ -941,24 +921,17 @@ bushView bushTextures zoom center bush =
 
                 Bush2 ->
                     bushTextures.bush2
-
-        size =
-            20
         
         posInfo = 
             { zoom = zoom
             , center = center
             , point = bush.position
             }
+        
+        mb f = Maybe.map f tex
 
     in
-    case tex of
-        Just t ->
-            cTexture posInfo size size t
-
-        Nothing ->
-            shapes [ fill Color.green ]
-                [ cRect posInfo size size ]
+    mb <| cTexture posInfo 0.15 0.001
 
 
 inputForm : Model -> Html Msg
