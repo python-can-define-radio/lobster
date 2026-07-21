@@ -11,6 +11,7 @@ import Canvas.Texture exposing (Texture)
 import Canvas.Texture as Texture
 import Json.Decode as Decode
 import Set exposing (Set)
+import Random
 
 
 canvW : number
@@ -26,6 +27,16 @@ type Facing
     | FaceLeft
     | FaceRight
 
+
+type BushKind
+    = Bush1
+    | Bush2
+
+
+type alias Bush =
+    { position : WPoint
+    , kind : BushKind
+    }
 
 
 type alias WPoint =
@@ -399,3 +410,24 @@ keepNonNothing lst =
 
             (x :: xs) ->
                 keepIfGood x xs
+
+
+pointGen : Random.Generator WPoint
+pointGen =
+    Random.map2
+        WPoint 
+        (Random.float 69000 71000)
+        (Random.float 39000 41000)
+
+
+bushGenerator : Random.Generator Bush
+bushGenerator =
+    Random.map2
+        Bush
+        pointGen
+        (Random.uniform Bush1 [ Bush2 ])
+
+
+bushesGenerator : Random.Generator (List Bush)
+bushesGenerator =
+    Random.list 100 bushGenerator

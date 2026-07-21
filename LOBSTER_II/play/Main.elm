@@ -484,6 +484,13 @@ lifeView m =
             ]
 
 
+lobCanvasAttributes : List (Html.Attribute Msg)
+lobCanvasAttributes =
+    [ class "lobs-canvas"
+    , Html.Events.onMouseDown MouseDown
+    ]
+
+
 tabletView : Model -> Html Msg
 tabletView m =
     div [ class "hudwrap" ]
@@ -492,7 +499,7 @@ tabletView m =
                 [ class "tablet-canvas" ]
                 (tabletScene m)
             , Canvas.toHtml (canvW, canvH)
-                [ class "lobs-canvas" ]
+                lobCanvasAttributes
                 (lobsScene m)
             , posText m
             , tabletButtons
@@ -999,7 +1006,7 @@ lobDialog m =
             div
                 [ class "lob-dialog" ]
                 [ p []
-                    [ text ("LOB source: "
+                    [ text ("Source: "
                         ++ String.fromInt (round lob.source.x)
                         ++ ", "
                         ++ String.fromInt (round lob.source.y)
@@ -1230,8 +1237,6 @@ subscriptions _ =
         , Browser.Events.onKeyUp
             (Decode.map KeyUp (Decode.field "code" Decode.string))
         , Browser.Events.onAnimationFrameDelta Tick
-        , Browser.Events.onMouseDown
-            (Decode.succeed MouseDown)
         , Browser.Events.onMouseMove
             (Decode.map MouseMove decodeMouseMovement)
         , Browser.Events.onMouseUp
