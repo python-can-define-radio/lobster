@@ -292,7 +292,7 @@ h1 {
     box-shadow: 0 0 30px #000 inset, 0 0 12px #000;
 }
 
-.game-dialog-buttons {
+.game-dialog-button {
     display: flex;
     justify-content: center;
     margin-top: 12px;
@@ -313,7 +313,7 @@ h1 {
     box-shadow: 0 0 30px #000 inset, 0 0 12px #000;
 }
 
-.lob-dialog-buttons {
+.lob-dialog-button {
     display: flex;
     justify-content: center;
     margin-top: 12px;

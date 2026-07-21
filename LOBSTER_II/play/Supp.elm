@@ -9,6 +9,8 @@ import Canvas.Settings exposing (fill)
 import Canvas.Settings.Advanced exposing (transform, scale, translate)
 import Canvas.Texture exposing (Texture)
 import Canvas.Texture as Texture
+import Html exposing (Html, button, div, form, i, input, p, text)
+import Html.Attributes exposing (class, placeholder, type_, value)
 import Json.Decode as Decode
 import Set exposing (Set)
 import Random
@@ -431,3 +433,14 @@ bushGenerator =
 bushesGenerator : Random.Generator (List Bush)
 bushesGenerator =
     Random.list 100 bushGenerator
+
+
+posText : WPoint -> Html msg
+posText player =
+    div [ class "player-pos" ]
+        [ text (
+            "x: "
+            ++ String.fromInt (round player.x)
+            ++ ", y: "
+            ++ String.fromInt (round player.y)
+        ) ]

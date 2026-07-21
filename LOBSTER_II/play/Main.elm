@@ -18,49 +18,55 @@ import Random
 import Set exposing (Set)
 import Char
 
-import Supp exposing (keepNonNothing, currentFacing, isMoving, azimuthFromPositions, azToDeg, Azimuth, drawLine, cRect, cTexture, transmitterCoordinatesText, movementVector, WPoint, lobIntervalMs, decodeMouseMovement, format2dp, snapToGrid, gridSpacing, texturesFromAvSheet, frameTexture, idleFrame, currentWalkCycle, PlayerTextures, WalkCycle, Facing(..), canvW, canvH, lifeBckgrd, tabletBckgrd)
+import Supp exposing (posText, keepNonNothing, currentFacing, isMoving, azimuthFromPositions, azToDeg, Azimuth, drawLine, cRect, cTexture, transmitterCoordinatesText, movementVector, WPoint, lobIntervalMs, decodeMouseMovement, format2dp, snapToGrid, gridSpacing, texturesFromAvSheet, frameTexture, idleFrame, currentWalkCycle, PlayerTextures, WalkCycle, Facing(..), canvW, canvH, lifeBckgrd, tabletBckgrd)
 
 
 type alias Model =
-    { player : WPoint
+    { playerPos : WPoint
     , dirx : Float
     , diry : Float
     , lobs : List Lob
     , transmitter : WPoint
     , panCenter : Maybe WPoint
     , isMouseDown : Bool
-    , overlayShown : Bool
+    , messagesShown : Bool
     , zoom : Float
-    , currentText : String
-    , submittedText : String
+    , formInputValue : String
+    , formSubmittedValue : String
     , isGatheringLobs : Bool
     , time : Float
     , lastFacing : Facing
     , keysDown : Set String
+    , localTextures : LocalTextures
+    , objects : List SimpleOb
     , playerTextures : Maybe PlayerTextures
-    , bushTextures : BushTextures
-    , bushes : List Bush
     , timeSinceLastLob : Float
     , mergedView : Bool
     , submissionPopupShown : Bool
     , selectedLob : Maybe Lob
     }
 
-
-type BushKind
-    = Bush1
-    | Bush2
-
-
-type alias Bush =
-    { position : WPoint
-    , kind : BushKind
+type alias LocalTextures =
+    { player : Maybe PlayerTextures
+    , bush1 : Maybe Texture
+    , bush2 : Maybe Texture
+    , road : Maybe Texture 
+    , roadnolines : Maybe Texture
     }
 
 
-type alias BushTextures =
-    { bush1 : Maybe Texture
-    , bush2 : Maybe Texture
+type TexName
+    = Bush1
+    | Bush2
+    | Road
+    | RoadNoLines
+
+{-| `name` refers to the texture. There may be more than 
+one SimpleOb with the same `name`. -}
+type alias SimpleOb =
+    { name : TexName
+    , position : WPoint
+    -- , TODO rotDeg : Int
     }
 
 
@@ -107,35 +113,37 @@ type Msg
     | SelectLob (Float, Float)
     | CloseLobDialog
     | LobNoiseAvailable Float
-    | BushesGenerated (List Bush)
+    | BushesGenerated (List SimpleOb)
     | TextureAvSheetLoaded (Maybe Texture)
-    | TextureBush1Loaded (Maybe Texture)
-    | TextureBush2Loaded (Maybe Texture)
+    | TextureLoaded TexName (Maybe Texture)
 
 
 initialModel : Model
 initialModel =
-    { player = { x = 70100, y = 40100 }
+    { playerPos = { x = 70100, y = 40100 }
     , dirx = 0
     , diry = 0
     , lobs = []
     , transmitter = { x = 70228, y = 41005 }
     , panCenter = Nothing
     , isMouseDown = False
-    , overlayShown = False
+    , messagesShown = False
     , zoom = 1.0
-    , currentText = ""
-    , submittedText = ""
+    , formInputValue = ""
+    , formSubmittedValue = ""
     , isGatheringLobs = True
     , time = 0
     , lastFacing = FaceDown
     , keysDown = Set.empty
     , playerTextures = Nothing
-    , bushTextures =
-        { bush1 = Nothing
+    , localTextures = 
+        { player = Nothing
+        , bush1 = Nothing
         , bush2 = Nothing
+        , road = Nothing 
+        , roadnolines = Nothing
         }
-    , bushes = []
+    , objects = roads
     , timeSinceLastLob = 0
     , mergedView = False
     , submissionPopupShown = False
@@ -150,8 +158,10 @@ distperMs = 0.05
 textures : List (Texture.Source Msg)
 textures =
     [ Texture.loadFromImageUrl "../assets/avatar_sheet2.png" TextureAvSheetLoaded
-    , Texture.loadFromImageUrl "../assets/bush_1.png" TextureBush1Loaded
-    , Texture.loadFromImageUrl "../assets/bush_2.png" TextureBush2Loaded
+    , Texture.loadFromImageUrl "../assets/bush_1.png" (TextureLoaded Bush1)
+    , Texture.loadFromImageUrl "../assets/bush_2.png" (TextureLoaded Bush2)
+    , Texture.loadFromImageUrl "../assets/road.png" (TextureLoaded Road)
+    , Texture.loadFromImageUrl "../assets/road_no_lines.png" (TextureLoaded RoadNoLines)
     ]
     
 move : Float -> Model -> Model
@@ -167,9 +177,9 @@ move dt m =
                 distperMs
     in
     { m
-        | player =
-            { x = m.player.x + movement.xdir * speed * dt
-            , y = m.player.y + movement.ydir * speed * dt
+        | playerPos =
+            { x = m.playerPos.x + movement.xdir * speed * dt
+            , y = m.playerPos.y + movement.ydir * speed * dt
             }
     }
 
@@ -234,18 +244,7 @@ cameraCenter m =
             center
 
         Nothing ->
-            m.player
-
-
-posText : Model -> Html Msg
-posText m =
-    div [ class "player-pos" ]
-        [ text (
-            "x: "
-            ++ String.fromInt (round m.player.x)
-            ++ ", y: "
-            ++ String.fromInt (round m.player.y)
-        ) ]
+            m.playerPos
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -289,7 +288,7 @@ update msg m =
             )
 
         ToggleOverlay ->
-            ( { m | overlayShown = not m.overlayShown }, Cmd.none )
+            ( { m | messagesShown = not m.messagesShown }, Cmd.none )
 
         ZoomIn ->
             ( { m | zoom = m.zoom * 2 }, Cmd.none)
@@ -312,7 +311,7 @@ update msg m =
         LobNoiseAvailable noise ->
             ( { m
                 | lobs = 
-                    makeLob noise m.player m.transmitter
+                    makeLob noise m.playerPos m.transmitter
                     :: m.lobs
                 , timeSinceLastLob = 0
               }
@@ -320,12 +319,12 @@ update msg m =
             )
 
         TextChanged newText ->
-            ( { m | currentText = newText }, Cmd.none )
+            ( { m | formInputValue = newText }, Cmd.none )
 
         Submit ->
             ( { m
-                | submittedText = m.currentText
-                , currentText = ""
+                | formSubmittedValue = m.formInputValue
+                , formInputValue = ""
                 , submissionPopupShown = True
                 }
             , Cmd.none
@@ -334,42 +333,38 @@ update msg m =
         CloseSubmissionPopup ->
             ( { m | submissionPopupShown = False }, Cmd.none )
 
-        TextureAvSheetLoaded Nothing ->
-            ( m, Cmd.none )
-
         TextureAvSheetLoaded (Just avSheet) ->
             ( { m | playerTextures = Just (texturesFromAvSheet avSheet)}
             , Cmd.none
             )
         
+        TextureAvSheetLoaded Nothing ->
+            ( m, Cmd.none )
+
         BushesGenerated bushes ->
-            ( { m | bushes = bushes }, Cmd.none )
+            ( { m | objects = bushes ++ m.objects }, Cmd.none )
+        
+        TextureLoaded texName tex ->
+            ( { m | localTextures =
+                handleTextureLoaded m.localTextures texName tex
+              }, Cmd.none ) 
 
-        TextureBush1Loaded (Just texture) ->
-            ( { m
-                | bushTextures =
-                    { bush1 = Just texture
-                    , bush2 = m.bushTextures.bush2
-                    }
-              }
-            , Cmd.none
-            )
 
-        TextureBush1Loaded Nothing ->
-            ( m, Cmd.none )
+handleTextureLoaded : LocalTextures -> TexName -> Maybe Texture -> LocalTextures
+handleTextureLoaded localTextures texName tex =
+    case texName of
+        Bush1 -> 
+            { localTextures | bush1 = tex }
+        
+        Bush2 -> 
+            { localTextures | bush2 = tex }
 
-        TextureBush2Loaded (Just texture) ->
-            ( { m
-                | bushTextures =
-                    { bush1 = m.bushTextures.bush1
-                    , bush2 = Just texture
-                    }
-              }
-            , Cmd.none
-            )
+        Road -> 
+            { localTextures | road = tex }
 
-        TextureBush2Loaded Nothing ->
-            ( m, Cmd.none )
+        RoadNoLines -> 
+            { localTextures | roadnolines = tex }
+            
 
 
 lobNoise : Model -> Cmd Msg
@@ -448,7 +443,6 @@ handleUp code m =
 isRunning : Model -> Bool
 isRunning m =
     Set.member "ShiftLeft" m.keysDown
-        || Set.member "ShiftRight" m.keysDown
 
 
 view : Model -> Html Msg
@@ -501,7 +495,7 @@ tabletView m =
             , Canvas.toHtml (canvW, canvH)
                 lobCanvasAttributes
                 (lobsScene m)
-            , posText m
+            , posText m.playerPos
             , tabletButtons
             , clearLobsButton
             , gatherLobsButton m
@@ -530,13 +524,13 @@ lifeScene : Model -> List Renderable
 lifeScene m =
     let
         center =
-            m.player
+            m.playerPos
 
         zoom =
             1
     in
     lifeBckgrd
-        ++ bushesView m.bushTextures m.bushes zoom center
+        ++ objectsView m.localTextures m.objects zoom center
         ++ transmitterView zoom center m.transmitter
         ++ avatarRender zoom center m
 
@@ -549,7 +543,7 @@ tabletScene m =
     in
     tabletBckgrd
         ++ gridView m.zoom center
-        ++ bushesView m.bushTextures m.bushes m.zoom center
+        ++ objectsView m.localTextures m.objects m.zoom center
         ++ transmitterView m.zoom center m.transmitter
         ++ avatarRender m.zoom center m
 
@@ -585,8 +579,8 @@ lobsView zoom center lobs selected =
 
         newest :: older ->
             olderLobsRenderable zoom center older
-                ++ [ newestLobRenderable zoom center newest ]
-                ++ selectedRenderable
+                ++ (newestLobRenderable zoom center newest
+                :: selectedRenderable)
 
 
 newestLobRenderable : Float -> WPoint -> Lob -> Renderable
@@ -702,7 +696,7 @@ walkingAnimation zoom center m playerTextures =
             frameTexture frame cycle
 
     in
-    cTexture {zoom = zoom, center = center, point = m.player} 0.2 0.1 texture
+    cTexture {zoom = zoom, center = center, point = m.playerPos} 0.2 0.1 texture
 
 
 
@@ -780,7 +774,7 @@ clearLobsButton =
 
 messagesOverlay : Model -> Html Msg
 messagesOverlay m =
-    if m.overlayShown then
+    if m.messagesShown then
         div [ class "overlay" ]
             [ overlayBackButton
             , missionMessage
@@ -816,15 +810,32 @@ pointGen =
         (Random.float 39000 41000)
 
 
-bushGenerator : Random.Generator Bush
+roads : List SimpleOb
+roads =
+    let
+        makeroad : Float -> Float -> SimpleOb
+        makeroad x y = { name = Road, position = { x = x, y = y } }
+
+        verticalroad a b =
+            List.range a b             -- if a=0 and b=3:  [0, 1, 2, 3]
+            |> List.map ((*)150)    -- [0, 150, 300, 450]
+            |> List.map ((+)40200)  -- [40200, 40350, etc]
+            |> List.map toFloat
+            |> List.map (\y -> makeroad 70100 y)
+
+    in
+        (verticalroad -6 -2) ++ [{ name = RoadNoLines, position = { x = 70100, y = 40050 } }] ++ (verticalroad 0 4)
+
+        
+bushGenerator : Random.Generator SimpleOb
 bushGenerator =
     Random.map2
-        Bush
-        pointGen
+        SimpleOb
         (Random.uniform Bush1 [ Bush2 ])
+        pointGen
 
 
-bushesGenerator : Random.Generator (List Bush)
+bushesGenerator : Random.Generator (List SimpleOb)
 bushesGenerator =
     Random.list 100 bushGenerator
 
@@ -911,28 +922,38 @@ gridHorizontalLines zoom center spacing xStart xEnd y yEnd =
                 yEnd
 
 
-bushesView : BushTextures -> List Bush -> Float -> WPoint -> List Renderable
-bushesView bushTextures bushes zoom center =
-    bushes
-        |> List.map (bushView bushTextures zoom center)
+objectsView : LocalTextures -> List SimpleOb -> Float -> WPoint -> List Renderable
+objectsView localTextures objects zoom center =
+    objects
+        |> List.map (objectView localTextures zoom center)
         |> keepNonNothing
 
 
-bushView : BushTextures -> Float -> WPoint -> Bush -> Maybe Renderable
-bushView bushTextures zoom center bush =
-    let
-        tex =
-            case bush.kind of
-                Bush1 ->
-                    bushTextures.bush1
+nameToTexture : LocalTextures -> TexName -> Maybe Texture
+nameToTexture localTextures texName =
+    case texName of
+        Bush1 ->
+            localTextures.bush1
 
-                Bush2 ->
-                    bushTextures.bush2
+        Bush2 ->
+            localTextures.bush2
+
+        Road ->
+            localTextures.road
+
+        RoadNoLines ->
+            localTextures.roadnolines
+
+
+objectView : LocalTextures -> Float -> WPoint -> SimpleOb -> Maybe Renderable
+objectView localTextures zoom center object =
+    let
+        tex = nameToTexture localTextures object.name
         
         posInfo = 
             { zoom = zoom
             , center = center
-            , point = bush.position
+            , point = object.position
             }
         
         mb f = Maybe.map f tex
@@ -951,7 +972,7 @@ inputForm m =
             [ class "input-form-textfield"
             , type_ "text"
             , placeholder "Enter coordinates..."
-            , value m.currentText
+            , value m.formInputValue
             , onInput TextChanged
             ]
             []
@@ -1032,8 +1053,8 @@ lobDialog m =
 lobDialogButtons : Html Msg
 lobDialogButtons =
     div
-        [ Html.Attributes.id "lob-dialog-buttons"
-        , class "lob-dialog-buttons"
+        [ Html.Attributes.id "lob-dialog-button"
+        , class "lob-dialog-button"
         ]
         [ button
             [ class "game-btn"
@@ -1127,7 +1148,7 @@ distanceToSegment mouse start finish =
 submissionDialogButtons : Html Msg
 submissionDialogButtons =
     div
-        [ Html.Attributes.id "game-dialog-buttons" ]
+        [ Html.Attributes.id "game-dialog-button" ]
         [ button
             [ class "game-btn"
             , onClick CloseSubmissionPopup
@@ -1156,7 +1177,7 @@ submissionResultText m =
 
 submittedCoordinate : Model -> Maybe ( WPoint, GridPrecision )
 submittedCoordinate m =
-    parseGridCoordinate m.submittedText
+    parseGridCoordinate m.formSubmittedValue
 
 
 parseGridCoordinate : String -> Maybe ( WPoint, GridPrecision )

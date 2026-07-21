@@ -6,6 +6,7 @@ Next steps (overview) -- details for each below in same order
 - Road
 - LOBs
 - Missions
+- TX
 
 1 month:
 - sound fx
@@ -17,8 +18,6 @@ Next steps (overview) -- details for each below in same order
 #############################################################################
 Buttons
     Submit button to check coordinates of transmitter (further testing to determine accuracy) (together)
-    Message button: (wolverine)
-        - this needs the rest of the mission like the northing threshold coordinate
 
 #############################################################################
 Gridlines
@@ -42,9 +41,15 @@ LOBs:
 #############################################################################
 Missions:
     - reincorporate mission 1
+        - this needs the rest of the mission like the northing threshold coordinate
+        - popup when you crossing the northing threshold
     - discuss and execute mission 2.
         Idea: no closer than __ meters to transmitter or enemy base or whatever
         Same popup if you get too close - "captured by enemy forces"
+
+#############################################################################
+TX:
+    - add transmitter image
 
 #############################################################################
 #############################################################################
