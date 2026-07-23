@@ -120,7 +120,7 @@ type Msg
 
 initialModel : Model
 initialModel =
-    { playerPos = { x = 70100, y = 40100 }
+    { playerPos = { x = 70000, y = 39900 }
     , dirx = 0
     , diry = 0
     , lobs = []
@@ -815,20 +815,31 @@ pointGen =
 roads : List SimpleOb
 roads =
     let
-        makeroad : Float -> Float -> SimpleOb
-        makeroad x y = { name = Road, position = { x = x, y = y }, rotDeg = 0 }
+        makeroad : Float -> Float -> Float -> SimpleOb
+        makeroad rotDeg x y  = { name = Road, position = { x = x, y = y }, rotDeg = rotDeg }
 
-        verticalroad a b =
-            List.range a b             -- if a=0 and b=3:  [0, 1, 2, 3]
-            |> List.map ((*)150)    -- [0, 150, 300, 450]
-            |> List.map ((+)40200)  -- [40200, 40350, etc]
+        spacing = 150
+
+        verticalroad xfixed ybase a b =
+            List.range a b              -- if a=0 and b=3:  [0, 1, 2, 3]
+            |> List.map ((*)spacing)    -- if spacing=150:  [0, 150, 300, 450]
+            |> List.map ((+)ybase)      -- if ybase=40200:  [40200, 40350, etc]
             |> List.map toFloat
-            |> List.map (\y -> makeroad 70100 y)
+            |> List.map (\y -> makeroad 0 xfixed y)
+
+        horizontalroad xbase yfixed a b =
+            List.range a b              
+            |> List.map ((*)spacing)    
+            |> List.map ((+)xbase)       
+            |> List.map toFloat
+            |> List.map (\x -> makeroad 90 x yfixed)
 
     in
-        (verticalroad -6 -2) 
-        ++ (verticalroad 0 4)
-        ++ [{ name = RoadNoLines, position = { x = 70100, y = 40050 }, rotDeg = 90 }] 
+        (verticalroad 70100 40050 -6 -1) 
+        ++ (verticalroad 70100 40050 1 6)
+        ++ (horizontalroad 70100 40050 1 6)
+        ++ (horizontalroad 70100 40050 -6 -1)
+        ++ [{ name = RoadNoLines, position = { x = 70100, y = 40050 }, rotDeg = 0 }] 
 
         
 bushGenerator : Random.Generator SimpleOb

@@ -25,16 +25,14 @@ Gridlines
 
 #############################################################################
 Road:
-    - vertical road is drawn we need to figure out how to rotate the image and draw horizontal road
-    Decide whether to do this using spritesheet or 
-      using "plain" draw functions as before.
+    Decide whether to do this using spritesheet for mission 2 or 
       Spritesheet makes it look nicer.
     Consider procedural generation of roads and perhaps the entire world?
 
 #############################################################################
 LOBs:
     UI:
-        Selectable lob (view FLAP for a lob)
+        Selectable lob (view FLAP for a lob) not fully functional second to last lob is being selected
     Simulation:
         Reflections
         Validating power level reasonableness
