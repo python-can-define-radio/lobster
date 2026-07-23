@@ -284,25 +284,40 @@ transmitterCoordinateParts transmitter =
     ]
 
 
+{-| grid Meter Base. Similar in purpose to the same-name var in Dart. We'll see whether it works out the same way. -}
+gridMB : Float
+gridMB = 20.0
+
+
 worldToCanvas : PosInfo -> CPoint
 worldToCanvas {zoom, center, point} =
-    { cx = zoom * (point.x - center.x) + canvW / 2
-    , cy = zoom * (center.y - point.y) + canvH / 2
+    { cx = zoom * gridMB * (point.x - center.x) + canvW / 2
+    , cy = zoom * gridMB * (center.y - point.y) + canvH / 2
     }
 
 
 {-| custom image (texture). See docstring on PosInfo. -}
 cTexture : PosInfo -> Float -> Float -> Float -> Texture -> Renderable
-cTexture posInfo imgScale minSize rot tex =
+cTexture posInfo minSize heightMeters rot tex =
     let
         canvpoint : CPoint
         canvpoint =
             worldToCanvas posInfo
 
-        z : Float
-        z = clamp minSize 99999 <| posInfo.zoom * imgScale
-
         dims = Texture.dimensions tex
+
+--- We have...
+--- the image has some height, e.g. 1024 px, which is dims.height
+--- We want to be able to specify the height in meters, e.g. 9.1 meters.
+--- 
+
+        imgScale = heightMeters / dims.height * gridMB
+
+        minsizeScaled = minSize / dims.height * gridMB
+
+        z : Float
+        z = clamp minsizeScaled 99999 <| posInfo.zoom * imgScale
+
         halfw = dims.width * z / 2
         halfh = dims.height * z / 2
         xcent = canvpoint.cx - halfw

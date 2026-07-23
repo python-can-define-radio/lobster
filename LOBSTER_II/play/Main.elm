@@ -18,7 +18,7 @@ import Random
 import Set exposing (Set)
 import Char
 
-import Supp exposing (posText, keepNonNothing, currentFacing, isMoving, azimuthFromPositions, azToDeg, Azimuth, drawLine, cRect, cTexture, transmitterCoordinatesText, movementVector, WPoint, lobIntervalMs, decodeMouseMovement, format2dp, snapToGrid, gridSpacing, texturesFromAvSheet, frameTexture, idleFrame, currentWalkCycle, PlayerTextures, WalkCycle, Facing(..), canvW, canvH, lifeBckgrd, tabletBckgrd)
+import Supp exposing (PosInfo, posText, keepNonNothing, currentFacing, isMoving, azimuthFromPositions, azToDeg, Azimuth, drawLine, cRect, cTexture, transmitterCoordinatesText, movementVector, WPoint, lobIntervalMs, decodeMouseMovement, format2dp, snapToGrid, gridSpacing, texturesFromAvSheet, frameTexture, idleFrame, currentWalkCycle, PlayerTextures, WalkCycle, Facing(..), canvW, canvH, lifeBckgrd, tabletBckgrd)
 
 
 type alias Model =
@@ -67,6 +67,7 @@ type alias SimpleOb =
     { name : TexName
     , position : WPoint
     , rotDeg : Float
+    , heightMeters : Float
     }
 
 
@@ -120,7 +121,7 @@ type Msg
 
 initialModel : Model
 initialModel =
-    { playerPos = { x = 70000, y = 39900 }
+    { playerPos = { x = 70010, y = 40085 }
     , dirx = 0
     , diry = 0
     , lobs = []
@@ -152,7 +153,7 @@ initialModel =
 
 
 distperMs : Float
-distperMs = 0.05
+distperMs = 1.5 / 1000
 
 
 textures : List (Texture.Source Msg)
@@ -696,10 +697,15 @@ walkingAnimation zoom center m playerTextures =
         tex : Texture
         tex =
             frameTexture frame cycle
+        
+        posInfo : PosInfo
+        posInfo = {zoom = zoom, center = center, point = m.playerPos}
+
+        heightMeters : Float
+        heightMeters = 2.3   -- this includes some transparent space; the avatar height from the user's perspective is smaller. 
 
     in
-    cTexture {zoom = zoom, center = center, point = m.playerPos} 0.2 0.1 0.0 tex
-
+    cTexture posInfo 1.5 heightMeters 0.0 tex
 
 
 tabletButtons : Html Msg
@@ -808,52 +814,53 @@ pointGen : Random.Generator WPoint
 pointGen =
     Random.map2
         WPoint 
-        (Random.float 69000 71000)
-        (Random.float 39000 41000)
+        (Random.float 69920 70110)
+        (Random.float 40000 40190)
 
 
 roads : List SimpleOb
 roads =
     let
         makeroad : Float -> Float -> Float -> SimpleOb
-        makeroad rotDeg x y  = { name = Road, position = { x = x, y = y }, rotDeg = rotDeg }
+        makeroad rotDeg x y = { name = Road, position = { x = x, y = y }, rotDeg = rotDeg, heightMeters = 9.1 }
 
-        spacing = 150
+        spacing = 9.0
 
         verticalroad xfixed ybase a b =
             List.range a b              -- if a=0 and b=3:  [0, 1, 2, 3]
+            |> List.map toFloat
             |> List.map ((*)spacing)    -- if spacing=150:  [0, 150, 300, 450]
             |> List.map ((+)ybase)      -- if ybase=40200:  [40200, 40350, etc]
-            |> List.map toFloat
             |> List.map (\y -> makeroad 0 xfixed y)
 
         horizontalroad xbase yfixed a b =
             List.range a b              
+            |> List.map toFloat
             |> List.map ((*)spacing)    
             |> List.map ((+)xbase)       
-            |> List.map toFloat
             |> List.map (\x -> makeroad 90 x yfixed)
 
     in
-        (verticalroad 70100 40050 -6 -1) 
-        ++ (verticalroad 70100 40050 1 6)
-        ++ (horizontalroad 70100 40050 1 6)
-        ++ (horizontalroad 70100 40050 -6 -1)
-        ++ [{ name = RoadNoLines, position = { x = 70100, y = 40050 }, rotDeg = 0 }] 
+        (verticalroad 70017 40091 -10 -1) 
+        ++ (verticalroad 70017 40091 1 10)
+        ++ (horizontalroad 70017 40091 1 10)
+        ++ (horizontalroad 70017 40091 -10 -1)
+        ++ [{ name = RoadNoLines, position = { x = 70017, y = 40091 }, rotDeg = 0, heightMeters = 9.1 }] 
 
         
 bushGenerator : Random.Generator SimpleOb
 bushGenerator =
-    Random.map3
+    Random.map4
         SimpleOb
         (Random.uniform Bush1 [ Bush2 ])
         pointGen
         (Random.uniform 0 [])
+        (Random.uniform 0.8 [])
 
 
 bushesGenerator : Random.Generator (List SimpleOb)
 bushesGenerator =
-    Random.list 100 bushGenerator
+    Random.list 1000 bushGenerator
 
 
 gridView : Float -> WPoint -> List Renderable
@@ -975,7 +982,7 @@ objectView localTextures zoom center object =
         mb f = Maybe.map f tex
 
     in
-    mb <| cTexture posInfo 0.15 0.001 object.rotDeg
+    mb <| cTexture posInfo 0.001 object.heightMeters object.rotDeg
 
 
 inputForm : Model -> Html Msg
