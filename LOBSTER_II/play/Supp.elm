@@ -14,6 +14,7 @@ import Html.Attributes exposing (class, placeholder, type_, value)
 import Json.Decode as Decode
 import Set exposing (Set)
 import Random
+import Canvas.Settings.Advanced exposing (rotate)
 
 
 canvW : number
@@ -291,8 +292,8 @@ worldToCanvas {zoom, center, point} =
 
 
 {-| custom image (texture). See docstring on PosInfo. -}
-cTexture : PosInfo -> Float -> Float -> Texture -> Renderable
-cTexture posInfo imgScale minSize tex =
+cTexture : PosInfo -> Float -> Float -> Float -> Texture -> Renderable
+cTexture posInfo imgScale minSize rot tex =
     let
         canvpoint : CPoint
         canvpoint =
@@ -311,6 +312,9 @@ cTexture posInfo imgScale minSize tex =
     Canvas.texture
         [ transform
             [ translate xcent ycent
+            , translate halfw halfh
+            , rotate (degrees rot)
+            , translate -halfw -halfh
             , scale z z
             ]
         ]

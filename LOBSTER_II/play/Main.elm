@@ -66,7 +66,7 @@ one SimpleOb with the same `name`. -}
 type alias SimpleOb =
     { name : TexName
     , position : WPoint
-    -- , TODO rotDeg : Int
+    , rotDeg : Float
     }
 
 
@@ -528,9 +528,10 @@ lifeScene m =
 
         zoom =
             1
+
     in
     lifeBckgrd
-        ++ objectsView m.localTextures m.objects zoom center
+        ++ objectsView m.localTextures zoom center m.objects
         ++ transmitterView zoom center m.transmitter
         ++ avatarRender zoom center m
 
@@ -540,10 +541,11 @@ tabletScene m =
     let
         center =
             cameraCenter m
+
     in
     tabletBckgrd
         ++ gridView m.zoom center
-        ++ objectsView m.localTextures m.objects m.zoom center
+        ++ objectsView m.localTextures m.zoom center m.objects
         ++ transmitterView m.zoom center m.transmitter
         ++ avatarRender m.zoom center m
 
@@ -691,12 +693,12 @@ walkingAnimation zoom center m playerTextures =
             else
                 idleFrame <| currentFacing m.keysDown m.lastFacing
 
-        texture : Texture
-        texture =
+        tex : Texture
+        tex =
             frameTexture frame cycle
 
     in
-    cTexture {zoom = zoom, center = center, point = m.playerPos} 0.2 0.1 texture
+    cTexture {zoom = zoom, center = center, point = m.playerPos} 0.2 0.1 0.0 tex
 
 
 
@@ -814,7 +816,7 @@ roads : List SimpleOb
 roads =
     let
         makeroad : Float -> Float -> SimpleOb
-        makeroad x y = { name = Road, position = { x = x, y = y } }
+        makeroad x y = { name = Road, position = { x = x, y = y }, rotDeg = 0 }
 
         verticalroad a b =
             List.range a b             -- if a=0 and b=3:  [0, 1, 2, 3]
@@ -824,15 +826,18 @@ roads =
             |> List.map (\y -> makeroad 70100 y)
 
     in
-        (verticalroad -6 -2) ++ [{ name = RoadNoLines, position = { x = 70100, y = 40050 } }] ++ (verticalroad 0 4)
+        (verticalroad -6 -2) 
+        ++ (verticalroad 0 4)
+        ++ [{ name = RoadNoLines, position = { x = 70100, y = 40050 }, rotDeg = 90 }] 
 
         
 bushGenerator : Random.Generator SimpleOb
 bushGenerator =
-    Random.map2
+    Random.map3
         SimpleOb
         (Random.uniform Bush1 [ Bush2 ])
         pointGen
+        (Random.uniform 0 [])
 
 
 bushesGenerator : Random.Generator (List SimpleOb)
@@ -922,13 +927,6 @@ gridHorizontalLines zoom center spacing xStart xEnd y yEnd =
                 yEnd
 
 
-objectsView : LocalTextures -> List SimpleOb -> Float -> WPoint -> List Renderable
-objectsView localTextures objects zoom center =
-    objects
-        |> List.map (objectView localTextures zoom center)
-        |> keepNonNothing
-
-
 nameToTexture : LocalTextures -> TexName -> Maybe Texture
 nameToTexture localTextures texName =
     case texName of
@@ -945,6 +943,13 @@ nameToTexture localTextures texName =
             localTextures.roadnolines
 
 
+objectsView : LocalTextures -> Float -> WPoint -> List SimpleOb -> List Renderable
+objectsView localTextures zoom center objects =
+    objects
+        |> List.map (objectView localTextures zoom center)
+        |> keepNonNothing
+
+        
 objectView : LocalTextures -> Float -> WPoint -> SimpleOb -> Maybe Renderable
 objectView localTextures zoom center object =
     let
@@ -959,7 +964,7 @@ objectView localTextures zoom center object =
         mb f = Maybe.map f tex
 
     in
-    mb <| cTexture posInfo 0.15 0.001
+    mb <| cTexture posInfo 0.15 0.001 object.rotDeg
 
 
 inputForm : Model -> Html Msg

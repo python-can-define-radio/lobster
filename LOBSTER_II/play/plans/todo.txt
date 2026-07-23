@@ -3,7 +3,7 @@ Next steps (overview) -- details for each below in same order
 1 week
 - Buttons
 - Gridlines
-- Road
+- Road 
 - LOBs
 - Missions
 - TX
@@ -24,7 +24,8 @@ Gridlines
     present but not accurate to the MGRS we are using, also movement should be accurate approx 7 sec/ 10 meters (together)
 
 #############################################################################
-Road
+Road:
+    - vertical road is drawn we need to figure out how to rotate the image and draw horizontal road
     Decide whether to do this using spritesheet or 
       using "plain" draw functions as before.
       Spritesheet makes it look nicer.
